@@ -1,0 +1,22 @@
+{
+  "name": "genai_word_app",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "Frontend",
+    "Backend"
+  ],
+  "scripts": {
+    "postinstall": "node -e \"console.log('skip prisma generate on postinstall')\"",
+    "start": "npm run dev",
+    "dev": "concurrently -n FE,BE -c blue,green \"npm -w Frontend run dev\" \"npm -w Backend run dev\"",
+    "build": "npm -w Frontend run build && npm -w Backend run build",
+    "format": "prettier --write .",
+    "lint": "echo 'Add lints later' && exit 0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1",
+    "prettier": "^3.3.3"
+  }
+}
+

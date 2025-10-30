@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// SQLite does not support Prisma enums natively; use string values instead
+
+model User {
+  id            Int      @id @default(autoincrement())
+  email         String   @unique
+  phoneNumber   String?
+  birthday      DateTime?
+  name          String
+  passwordHash  String
+  language      String?
+  isLocked      Boolean  @default(false)
+  role          String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  student   Student?
+  supplier  Supplier?
+  admin     Admin?
+  vocabularies Vocabulary[] @relation("UserVocabularies")
+}
+
+model Student {
+  userId      Int   @id
+  user        User  @relation(fields: [userId], references: [id])
+  paraGame    String?
+  payments    String?
+  lFriendIds  String?
+  coupons     Coupon[] @relation("StudentCoupons")
+}
+
+model Supplier {
+  userId   Int   @id
+  user     User  @relation(fields: [userId], references: [id])
+  payments String?
+  stores   Store[]
+  coupons  Coupon[]
+}
+
+model Admin {
+  userId      Int   @id
+  user        User  @relation(fields: [userId], references: [id])
+  permissions String?
+}
+
+model Store {
+  id         Int       @id @default(autoincrement())
+  supplier   Supplier  @relation(fields: [supplierId], references: [userId])
+  supplierId Int
+  name       String
+  location   String?
+  website    String?
+  lScores    String?
+  lComments  String?
+}
+
+model Coupon {
+  id         Int       @id @default(autoincrement())
+  supplier   Supplier? @relation(fields: [supplierId], references: [userId])
+  supplierId Int?
+  period     DateTime?
+  link       String?
+  text       String?
+  picture    String?
+  students   Student[] @relation("StudentCoupons")
+}
+
+model Vocabulary {
+  id               Int      @id @default(autoincrement())
+  name             String
+  langUse          String?
+  langExp          String?
+  copyrights       String?
+  establisher      User     @relation("UserVocabularies", fields: [establisherUserId], references: [id])
+  establisherUserId Int
+  words            Word[]
+  createdAt        DateTime @default(now())
+}
+
+model Word {
+  id            Int        @id @default(autoincrement())
+  vocabulary    Vocabulary @relation(fields: [vocabularyId], references: [id])
+  vocabularyId  Int
+  word          String
+  spelling      String?
+  explanation   String?
+  partOfSpeech  String?
+  sentence      String?
+}
+
