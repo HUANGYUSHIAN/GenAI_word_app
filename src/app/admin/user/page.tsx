@@ -22,6 +22,12 @@ import {
   CircularProgress,
   Alert,
   Chip,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Select,
+  Switch,
+  FormControlLabel,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -58,6 +64,9 @@ export default function AdminUserPage() {
     phoneNumber: "",
     birthday: "",
     language: "",
+    dataType: "",
+    isLock: false,
+    image: "",
   });
 
   useEffect(() => {
@@ -98,6 +107,9 @@ export default function AdminUserPage() {
       phoneNumber: user.phoneNumber || "",
       birthday: user.birthday ? user.birthday.split("T")[0] : "",
       language: user.language || "",
+      dataType: user.dataType || "",
+      isLock: user.isLock || false,
+      image: "",
     });
     setOpenDialog(true);
   };
@@ -167,6 +179,9 @@ export default function AdminUserPage() {
       phoneNumber: "",
       birthday: "",
       language: "",
+      dataType: "",
+      isLock: false,
+      image: "",
     });
     setOpenDialog(true);
   };
@@ -374,6 +389,32 @@ export default function AdminUserPage() {
               onChange={(e) => setFormData({ ...formData, language: e.target.value })}
               fullWidth
             />
+            {selectedUser && (
+              <>
+                <FormControl fullWidth>
+                  <InputLabel>身分</InputLabel>
+                  <Select
+                    value={formData.dataType}
+                    label="身分"
+                    onChange={(e) => setFormData({ ...formData, dataType: e.target.value })}
+                  >
+                    <MenuItem value="">未選擇</MenuItem>
+                    <MenuItem value="Student">Student</MenuItem>
+                    <MenuItem value="Supplier">Supplier</MenuItem>
+                    <MenuItem value="Admin">Admin</MenuItem>
+                  </Select>
+                </FormControl>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={formData.isLock}
+                      onChange={(e) => setFormData({ ...formData, isLock: e.target.checked })}
+                    />
+                  }
+                  label="鎖定帳號"
+                />
+              </>
+            )}
           </Box>
         </DialogContent>
         <DialogActions>

@@ -5,8 +5,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 // POST - 切換用戶鎖定狀態
 export async function POST(
-  request: Request,
-  { params }: { params: { userId: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);

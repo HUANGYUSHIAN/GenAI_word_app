@@ -23,10 +23,13 @@ import {
   Alert,
   Chip,
 } from "@mui/material";
+import SaveIcon from "@mui/icons-material/Save";
 import AddIcon from "@mui/icons-material/Add";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
+import VocabularyUpload from "@/components/VocabularyUpload";
+import LanguageSelect from "@/components/LanguageSelect";
 
 interface Vocabulary {
   vocabularyId: string;
@@ -49,10 +52,12 @@ export default function AdminVocabularyPage() {
   const [openViewDialog, setOpenViewDialog] = useState(false);
   const [selectedVocabulary, setSelectedVocabulary] = useState<Vocabulary | null>(null);
   const [words, setWords] = useState<any[]>([]);
+  const [editingWords, setEditingWords] = useState<any[]>([]);
   const [wordsPage, setWordsPage] = useState(0);
   const [wordsPerPage, setWordsPerPage] = useState(50);
   const [wordsTotal, setWordsTotal] = useState(0);
   const [loadingWords, setLoadingWords] = useState(false);
+  const [savingWords, setSavingWords] = useState(false);
   const [error, setError] = useState("");
   const [formData, setFormData] = useState({
     name: "",
@@ -95,7 +100,9 @@ export default function AdminVocabularyPage() {
       );
       if (response.ok) {
         const data = await response.json();
-        setWords(data.words || []);
+        const fetchedWords = data.words || [];
+        setWords(fetchedWords);
+        setEditingWords(fetchedWords.map((w: any) => ({ ...w }))); // 創建副本用於編輯
         setWordsTotal(data.total || 0);
       }
     } catch (error) {
@@ -110,6 +117,47 @@ export default function AdminVocabularyPage() {
     setWordsPage(0);
     setOpenViewDialog(true);
     await fetchWords(vocabulary.vocabularyId, 0);
+  };
+
+  const handleWordChange = (index: number, field: string, value: string) => {
+    const updated = [...editingWords];
+    updated[index] = {
+      ...updated[index],
+      [field]: value,
+    };
+    setEditingWords(updated);
+  };
+
+  const handleSaveWords = async () => {
+    if (!selectedVocabulary) return;
+
+    try {
+      setSavingWords(true);
+      const response = await fetch(
+        `/api/admin/vocabularies/${selectedVocabulary.vocabularyId}/words`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ words: editingWords }),
+        }
+      );
+
+      if (response.ok) {
+        // 重新載入當前頁的單字
+        await fetchWords(selectedVocabulary.vocabularyId, wordsPage);
+        setError("");
+        // 顯示成功訊息
+        alert("單字儲存成功！");
+      } else {
+        const data = await response.json();
+        setError(data.error || "儲存單字失敗");
+      }
+    } catch (error) {
+      console.error("Error saving words:", error);
+      setError("儲存單字失敗");
+    } finally {
+      setSavingWords(false);
+    }
   };
 
   const handleEdit = (vocabulary: Vocabulary) => {
@@ -210,6 +258,14 @@ export default function AdminVocabularyPage() {
         </Button>
       </Box>
 
+      <Box sx={{ mb: 3 }}>
+        <VocabularyUpload
+          onUploadSuccess={() => {
+            fetchVocabularies();
+          }}
+        />
+      </Box>
+
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
           {error}
@@ -306,6 +362,11 @@ export default function AdminVocabularyPage() {
         <DialogContent>
           {selectedVocabulary && (
             <Box sx={{ pt: 2 }}>
+              {error && (
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
+                  {error}
+                </Alert>
+              )}
               <Typography><strong>單字本ID:</strong> {selectedVocabulary.vocabularyId}</Typography>
               <Typography><strong>名稱:</strong> {selectedVocabulary.name}</Typography>
               <Typography><strong>背誦語言:</strong> {selectedVocabulary.langUse}</Typography>
@@ -315,7 +376,17 @@ export default function AdminVocabularyPage() {
               <Typography><strong>單字數:</strong> {selectedVocabulary.wordCount}</Typography>
               
               <Box sx={{ mt: 3 }}>
-                <Typography variant="h6" gutterBottom>單字列表</Typography>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                  <Typography variant="h6">單字列表</Typography>
+                  <Button
+                    variant="contained"
+                    startIcon={<SaveIcon />}
+                    onClick={handleSaveWords}
+                    disabled={savingWords || loadingWords}
+                  >
+                    {savingWords ? "儲存中..." : "儲存修改"}
+                  </Button>
+                </Box>
                 {loadingWords ? (
                   <CircularProgress />
                 ) : (
@@ -332,13 +403,52 @@ export default function AdminVocabularyPage() {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {words.map((word) => (
-                            <TableRow key={word.id}>
-                              <TableCell>{word.word}</TableCell>
-                              <TableCell>{word.spelling || "-"}</TableCell>
-                              <TableCell>{word.explanation}</TableCell>
-                              <TableCell>{word.partOfSpeech || "-"}</TableCell>
-                              <TableCell>{word.sentence || "-"}</TableCell>
+                          {editingWords.map((word, index) => (
+                            <TableRow key={word.id || index}>
+                              <TableCell>
+                                <TextField
+                                  size="small"
+                                  value={word.word || ""}
+                                  onChange={(e) => handleWordChange(index, "word", e.target.value)}
+                                  fullWidth
+                                  required
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <TextField
+                                  size="small"
+                                  value={word.spelling || ""}
+                                  onChange={(e) => handleWordChange(index, "spelling", e.target.value)}
+                                  fullWidth
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <TextField
+                                  size="small"
+                                  value={word.explanation || ""}
+                                  onChange={(e) => handleWordChange(index, "explanation", e.target.value)}
+                                  fullWidth
+                                  required
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <TextField
+                                  size="small"
+                                  value={word.partOfSpeech || ""}
+                                  onChange={(e) => handleWordChange(index, "partOfSpeech", e.target.value)}
+                                  fullWidth
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <TextField
+                                  size="small"
+                                  value={word.sentence || ""}
+                                  onChange={(e) => handleWordChange(index, "sentence", e.target.value)}
+                                  fullWidth
+                                  multiline
+                                  maxRows={2}
+                                />
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -350,7 +460,7 @@ export default function AdminVocabularyPage() {
                       page={wordsPage}
                       onPageChange={async (e, newPage) => {
                         setWordsPage(newPage);
-                        await fetchWords(selectedVocabulary.vocabularyId, newPage);
+                        await fetchWords(selectedVocabulary!.vocabularyId, newPage);
                       }}
                       rowsPerPage={wordsPerPage}
                       onRowsPerPageChange={(e) => {
@@ -366,7 +476,11 @@ export default function AdminVocabularyPage() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenViewDialog(false)}>關閉</Button>
+          <Button onClick={() => {
+            setOpenViewDialog(false);
+            setEditingWords([]);
+            setError("");
+          }}>關閉</Button>
         </DialogActions>
       </Dialog>
 
@@ -382,18 +496,16 @@ export default function AdminVocabularyPage() {
               fullWidth
               required
             />
-            <TextField
-              label="背誦語言"
+            <LanguageSelect
               value={formData.langUse}
-              onChange={(e) => setFormData({ ...formData, langUse: e.target.value })}
-              fullWidth
+              onChange={(value) => setFormData({ ...formData, langUse: value as string })}
+              label="背誦語言"
               required
             />
-            <TextField
-              label="解釋語言"
+            <LanguageSelect
               value={formData.langExp}
-              onChange={(e) => setFormData({ ...formData, langExp: e.target.value })}
-              fullWidth
+              onChange={(value) => setFormData({ ...formData, langExp: value as string })}
+              label="解釋語言"
               required
             />
             <TextField

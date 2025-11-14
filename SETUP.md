@@ -659,3 +659,4 @@ npm install
 
 **最後更新：** 2024
 
+npm i -g vercel

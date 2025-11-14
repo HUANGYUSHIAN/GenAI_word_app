@@ -5,8 +5,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 // PUT - 更新優惠券
 export async function PUT(
-  request: Request,
-  { params }: { params: { couponId: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ couponId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -49,8 +49,8 @@ export async function PUT(
 
 // DELETE - 刪除優惠券
 export async function DELETE(
-  request: Request,
-  { params }: { params: { couponId: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ couponId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);

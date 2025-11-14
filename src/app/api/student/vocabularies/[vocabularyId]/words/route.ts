@@ -15,16 +15,6 @@ export async function GET(
       return NextResponse.json({ error: "未登入" }, { status: 401 });
     }
 
-    // 檢查是否為管理員
-    const admin = await prisma.user.findUnique({
-      where: { userId: session.userId },
-      include: { adminData: true },
-    });
-
-    if (!admin || admin.dataType !== "Admin" || !admin.adminData) {
-      return NextResponse.json({ error: "無權限" }, { status: 403 });
-    }
-
     const { vocabularyId } = await params;
     const searchParams = request.nextUrl.searchParams;
     const page = parseInt(searchParams.get("page") || "0", 10);
@@ -41,7 +31,6 @@ export async function GET(
     }
 
     // 根據是否使用本地資料庫決定查詢方式
-    // MongoDB 使用 vocabulary.id (ObjectId)，本地資料庫使用 vocabularyId (string)
     const useLocalDb = process.env.DATABASE_local === "true";
     const vocabId = useLocalDb ? vocabularyId : (vocabulary as any).id;
     
@@ -69,7 +58,7 @@ export async function GET(
   }
 }
 
-// PUT - 批量更新單字
+// PUT - 批量更新單字（僅限建立者是自己）
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ vocabularyId: string }> }
@@ -81,16 +70,6 @@ export async function PUT(
       return NextResponse.json({ error: "未登入" }, { status: 401 });
     }
 
-    // 檢查是否為管理員
-    const admin = await prisma.user.findUnique({
-      where: { userId: session.userId },
-      include: { adminData: true },
-    });
-
-    if (!admin || admin.dataType !== "Admin" || !admin.adminData) {
-      return NextResponse.json({ error: "無權限" }, { status: 403 });
-    }
-
     const { vocabularyId } = await params;
     const body = await request.json();
     const { words } = body;
@@ -99,13 +78,18 @@ export async function PUT(
       return NextResponse.json({ error: "無效的單字資料" }, { status: 400 });
     }
 
-    // 獲取 vocabulary 的 id
+    // 檢查單字本是否存在，並驗證建立者
     const vocabulary = await prisma.vocabulary.findUnique({
       where: { vocabularyId },
     });
 
     if (!vocabulary) {
       return NextResponse.json({ error: "找不到單字本" }, { status: 404 });
+    }
+
+    // 檢查是否為建立者
+    if (vocabulary.establisher !== session.userId) {
+      return NextResponse.json({ error: "無權限修改此單字本" }, { status: 403 });
     }
 
     // 根據是否使用本地資料庫決定 vocabularyId
@@ -149,3 +133,4 @@ export async function PUT(
     return NextResponse.json({ error: "伺服器錯誤" }, { status: 500 });
   }
 }
+

@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       prisma.coupon.count(),
     ]);
 
-    const couponsWithDate = coupons.map((c) => ({
+    const couponsWithDate = coupons.map((c: any) => ({
       ...c,
       period: c.period.toISOString(),
       createdAt: c.createdAt.toISOString(),

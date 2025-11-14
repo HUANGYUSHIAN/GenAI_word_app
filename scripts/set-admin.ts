@@ -76,7 +76,8 @@ async function setAdmin(userId: string) {
         data: {
           userId,
           permissions: [],
-        });
+        },
+      });
       console.log("Created admin data");
     }
 

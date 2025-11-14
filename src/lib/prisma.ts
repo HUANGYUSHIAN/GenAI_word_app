@@ -41,7 +41,12 @@ function createLocalPrisma() {
       update: async (options: { where: { userId?: string; googleId?: string }; data: any }) => {
         // Prisma API: update({ where: { userId: '...' }, data: {...} })
         // 本地資料庫 API: update({ userId: '...' }, data)
-        return localUserDb.update(options.where, options.data);
+        if (!options.where.userId && !options.where.googleId) {
+          throw new Error("Either userId or googleId must be provided");
+        }
+        // local-db.update implementation handles both userId and googleId
+        // Type assertion is safe because we've verified at least one exists
+        return localUserDb.update(options.where as { userId: string; googleId?: string }, options.data);
       },
       delete: async (options: { where: { userId: string } }) => {
         // Prisma API: delete({ where: { userId: '...' } })
@@ -53,8 +58,8 @@ function createLocalPrisma() {
     supplier: localSupplierDb,
     admin: localAdminDb,
     vocabulary: {
-      findUnique: async (where: { vocabularyId: string }, options?: any) => {
-        return localVocabularyDb.findUnique(where, options);
+      findUnique: async (options: { where: { vocabularyId: string }; include?: any }) => {
+        return localVocabularyDb.findUnique(options.where, { include: options.include });
       },
       findMany: async (options?: any) => {
         const result = await localVocabularyDb.findMany(options);
@@ -65,17 +70,47 @@ function createLocalPrisma() {
           updatedAt: typeof v.updatedAt === "string" ? new Date(v.updatedAt) : v.updatedAt,
         }));
       },
-      count: localVocabularyDb.count,
-      create: localVocabularyDb.create,
-      update: localVocabularyDb.update,
-      delete: localVocabularyDb.delete,
+      count: async (options?: { where?: any }) => {
+        return localVocabularyDb.count(options?.where);
+      },
+      create: async (options: { data: any }) => {
+        // Prisma API: create({ data: {...} })
+        // 本地資料庫 API: create(data)
+        return localVocabularyDb.create(options.data);
+      },
+      update: async (options: { where: { vocabularyId: string }; data: any }) => {
+        // Prisma API: update({ where: { vocabularyId: '...' }, data: {...} })
+        // 本地資料庫 API: update({ vocabularyId: '...' }, data)
+        return localVocabularyDb.update(options.where, options.data);
+      },
+      delete: async (options: { where: { vocabularyId: string } }) => {
+        // Prisma API: delete({ where: { vocabularyId: '...' } })
+        // 本地資料庫 API: delete({ vocabularyId: '...' })
+        return localVocabularyDb.delete(options.where);
+      },
     },
     word: {
-      findMany: async (where: { vocabularyId: string }, options?: any) => {
-        return localWordDb.findMany(where, options);
+      findMany: async (options: { where: { vocabularyId: string }; skip?: number; take?: number; orderBy?: any }) => {
+        return localWordDb.findMany(options.where, { skip: options.skip, take: options.take, orderBy: options.orderBy });
       },
-      count: localWordDb.count,
-      createMany: localWordDb.createMany,
+      count: async (options: { where: { vocabularyId: string } }) => {
+        return localWordDb.count(options.where);
+      },
+      createMany: async (options: { data: any[] }) => {
+        // Prisma API: createMany({ data: [...] })
+        // 本地資料庫 API: createMany([...])
+        return localWordDb.createMany(options.data);
+      },
+      update: async (options: { where: { id: string }; data: any }) => {
+        // Prisma API: update({ where: { id: '...' }, data: {...} })
+        // 本地資料庫 API: update({ id: '...' }, data)
+        return localWordDb.update(options.where, options.data);
+      },
+      create: async (options: { data: any }) => {
+        // Prisma API: create({ data: {...} })
+        // 本地資料庫 API: create(data)
+        return localWordDb.create(options.data);
+      },
     },
     coupon: {
       findUnique: async (where: { couponId: string }) => {

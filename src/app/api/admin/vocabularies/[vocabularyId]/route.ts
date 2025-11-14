@@ -5,8 +5,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 // PUT - 更新單字本
 export async function PUT(
-  request: Request,
-  { params }: { params: { vocabularyId: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ vocabularyId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -49,8 +49,8 @@ export async function PUT(
 
 // DELETE - 刪除單字本
 export async function DELETE(
-  request: Request,
-  { params }: { params: { vocabularyId: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ vocabularyId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);

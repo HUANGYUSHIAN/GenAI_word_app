@@ -19,6 +19,7 @@
     "db:clear": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/clear-database.ts",
     "db:test": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/test-connection.ts",
     "db:check-env": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/check-env.ts",
+    "db": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/db.ts",
     "check:oauth": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/check-google-oauth.ts",
     "check:vercel": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/check-vercel-env.ts",
     "test:env": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/test-env.ts"
@@ -31,13 +32,17 @@
     "@mui/material": "^5.16.7",
     "@prisma/client": "^5.22.0",
     "dotenv": "^17.2.3",
+    "franc": "^6.2.0",
     "next": "16.0.1",
     "next-auth": "^4.24.10",
+    "papaparse": "^5.5.3",
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/papaparse": "^5.5.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
