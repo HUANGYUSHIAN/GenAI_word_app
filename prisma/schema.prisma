@@ -1,0 +1,146 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @unique // 30字符的随机ID（英文+数字）
+  googleId    String?  @unique // Google OAuth的id（sub），作为key
+  name        String?
+  email       String?
+  image       String?
+  phoneNumber String?  // 使用者的手機號碼
+  birthday    DateTime? // 使用者的生日
+  language    String?  // 使用者的母語
+  isLock      Boolean  @default(false) // 該使用者帳號是否上鎖
+  dataType    String?  // "Student", "Supplier", "Admin" 或 null（未選擇）
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 關聯到 Student, Supplier, Admin 資料
+  studentData Student?
+  supplierData Supplier?
+  adminData Admin?
+
+  @@map("users")
+}
+
+model Student {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  lvocabuIDs  String[] @default([]) // vocabulary_ID list
+  lcouponIDs  String[] @default([]) // coupon ID list
+  paraGame    String?  // game parameter (JSON string)
+  payments    String?  // 付款資料 (JSON string)
+  lfriendIDs  String[] @default([]) // friend ID list
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("students")
+}
+
+model Supplier {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  lsuppcoIDs  String[] @default([]) // supply coupon ID list
+  payments    String?  // 付款資料 (JSON string)
+  stores      Store[]  // 存放店家店鋪資訊的list
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("suppliers")
+}
+
+model Store {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  supplierId String
+  supplier  Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  name      String   // 分店名稱
+  location  String?  // 分店位置
+  website   String?  // 分店網站
+  lscores   Int[]    @default([0, 0, 0, 0, 0]) // score list [1分人數, 2分人數, 3分人數, 4分人數, 5分人數]
+  lcomments Comment[] // 存放使用者對於該分店的評論
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("stores")
+}
+
+model Comment {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  userId    String   // 評論者的 userId
+  score     Int      // 評分 (1-5)
+  content   String?  // 評論內容
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("comments")
+}
+
+model Admin {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  permissions String[] @default([]) // 管理者權限
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("admins")
+}
+
+model Coupon {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  couponId  String   @unique // 優惠券ID
+  name      String   // 優惠券名稱
+  period    DateTime // 使用期限(截止日期)
+  link      String?  // coupon QRcode or URL
+  text      String?  // 折價券內容
+  picture   String?  // 折價券圖片設計 (URL)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("coupons")
+}
+
+model Vocabulary {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  vocabularyId String  @unique // 單字本ID
+  name        String   // 單字本名稱
+  langUse    String   // 背誦單字的語言
+  langExp    String   // 解釋單字的語言
+  copyrights String?  // 單字本版權
+  establisher String  // 單字本建立者的ID
+  words      Word[]   // 存放單字的list
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("vocabularies")
+}
+
+model Word {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  vocabularyId String
+  vocabulary   Vocabulary @relation(fields: [vocabularyId], references: [id], onDelete: Cascade)
+  word         String     // 單字
+  spelling     String?    // 拼音，可以為None
+  explanation  String     // 單字解釋
+  partOfSpeech String?    // 詞性，可以為None
+  sentence     String?    // 範例句
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@map("words")
+}
+

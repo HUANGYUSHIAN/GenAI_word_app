@@ -1,22 +1,53 @@
 {
-  "name": "genai_word_app",
-  "private": true,
+  "name": "oauth",
   "version": "0.1.0",
-  "workspaces": [
-    "Frontend",
-    "Backend"
-  ],
+  "private": true,
   "scripts": {
-    "postinstall": "node -e \"console.log('skip prisma generate on postinstall')\"",
-    "start": "npm run dev",
-    "dev": "concurrently -n FE,BE -c blue,green \"npm -w Frontend run dev\" \"npm -w Backend run dev\"",
-    "build": "npm -w Frontend run build && npm -w Backend run build",
-    "format": "prettier --write .",
-    "lint": "echo 'Add lints later' && exit 0"
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "eslint",
+    "postinstall": "prisma generate",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:init-local": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/init-local-db.ts",
+    "db:migrate-to-mongodb": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/migrate-local-to-mongodb.ts",
+    "db:seed": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/create-test-user.ts",
+    "db:create-admin": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/create-admin.ts",
+    "db:list-admins": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/list-admins.ts",
+    "db:query": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/query-users.ts",
+    "db:clear": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/clear-database.ts",
+    "db:test": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/test-connection.ts",
+    "db:check-env": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/check-env.ts",
+    "check:oauth": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/check-google-oauth.ts",
+    "check:vercel": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/check-vercel-env.ts",
+    "test:env": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/test-env.ts"
+  },
+  "dependencies": {
+    "@emotion/cache": "^11.13.3",
+    "@emotion/react": "^11.13.3",
+    "@emotion/styled": "^11.13.3",
+    "@mui/icons-material": "^5.18.0",
+    "@mui/material": "^5.16.7",
+    "@prisma/client": "^5.22.0",
+    "dotenv": "^17.2.3",
+    "next": "16.0.1",
+    "next-auth": "^4.24.10",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
   },
   "devDependencies": {
-    "concurrently": "^9.0.1",
-    "prettier": "^3.3.3"
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "babel-plugin-react-compiler": "1.0.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.0.1",
+    "prisma": "^5.22.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5"
+  },
+  "prisma": {
+    "seed": "ts-node --compiler-options {\"module\":\"commonjs\"} prisma/seed.ts"
   }
 }
-
