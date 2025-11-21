@@ -22,6 +22,7 @@ model User {
   language    String?  // 使用者的母語
   isLock      Boolean  @default(false) // 該使用者帳號是否上鎖
   dataType    String?  // "Student", "Supplier", "Admin" 或 null（未選擇）
+  feedback    String?  // 使用者反饋 (JSON string)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -142,5 +143,14 @@ model Word {
   updatedAt    DateTime   @updatedAt
 
   @@map("words")
+}
+
+model FeedbackForm {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  questions String   // 表單問題 (JSON string)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("feedback_forms")
 }
 

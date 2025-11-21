@@ -29,6 +29,9 @@ import SaveIcon from "@mui/icons-material/Save";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import SearchIcon from "@mui/icons-material/Search";
+import AddIcon from "@mui/icons-material/Add";
+import RemoveIcon from "@mui/icons-material/Remove";
+import DeleteIcon from "@mui/icons-material/Delete";
 import VocabularyUpload from "@/components/VocabularyUpload";
 import LanguageSelect, { LANGUAGE_OPTIONS } from "@/components/LanguageSelect";
 import { useSession } from "next-auth/react";
@@ -42,6 +45,7 @@ interface Vocabulary {
   establisher: string;
   wordCount: number;
   createdAt: string;
+  isInMyList?: boolean; // 用於 browse 頁面，標記是否已在列表中
 }
 
 export default function StudentVocabularyPage() {
@@ -259,6 +263,88 @@ export default function StudentVocabularyPage() {
     return vocabulary.establisher === session?.userId;
   };
 
+  const handleAddVocabulary = async (vocabulary: Vocabulary) => {
+    try {
+      const response = await fetch("/api/student/vocabularies/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vocabularyId: vocabulary.vocabularyId }),
+      });
+
+      if (response.ok) {
+        // 更新本地狀態
+        vocabulary.isInMyList = true;
+        // 刷新我的單字本列表
+        fetchMyVocabularies();
+        // 刷新 browse 列表
+        await fetchBrowseVocabularies(browsePage);
+      } else {
+        const data = await response.json();
+        setError(data.error || "加入單字本失敗");
+      }
+    } catch (error) {
+      console.error("Error adding vocabulary:", error);
+      setError("加入單字本失敗");
+    }
+  };
+
+  const handleRemoveVocabulary = async (vocabulary: Vocabulary) => {
+    try {
+      const response = await fetch("/api/student/vocabularies/remove", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vocabularyId: vocabulary.vocabularyId }),
+      });
+
+      if (response.ok) {
+        // 更新本地狀態
+        vocabulary.isInMyList = false;
+        // 刷新我的單字本列表
+        fetchMyVocabularies();
+        // 刷新 browse 列表
+        await fetchBrowseVocabularies(browsePage);
+      } else {
+        const data = await response.json();
+        setError(data.error || "移除單字本失敗");
+      }
+    } catch (error) {
+      console.error("Error removing vocabulary:", error);
+      setError("移除單字本失敗");
+    }
+  };
+
+  const handleDeleteVocabulary = async (vocabulary: Vocabulary) => {
+    // 檢查是否為建立者
+    const isOwner = vocabulary.establisher === session?.userId;
+    
+    if (isOwner) {
+      // 是建立者：刪除單字本（包含資料）
+      if (!confirm("確定要刪除此單字本嗎？此操作將永久刪除單字本及其所有單字資料，且無法復原。")) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/student/vocabularies/${vocabulary.vocabularyId}`, {
+          method: "DELETE",
+        });
+
+        if (response.ok) {
+          fetchMyVocabularies();
+          setError("");
+        } else {
+          const data = await response.json();
+          setError(data.error || "刪除單字本失敗");
+        }
+      } catch (error) {
+        console.error("Error deleting vocabulary:", error);
+        setError("刪除單字本失敗");
+      }
+    } else {
+      // 不是建立者：只從列表中移除
+      await handleRemoveVocabulary(vocabulary);
+    }
+  };
+
   return (
     <Box>
       <Box sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}>
@@ -299,55 +385,69 @@ export default function StudentVocabularyPage() {
               <TableCell>解釋語言</TableCell>
               <TableCell>單字數</TableCell>
               <TableCell>建立時間</TableCell>
-              <TableCell align="right">操作</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={6} align="center">
-                  <CircularProgress />
-                </TableCell>
-              </TableRow>
-            ) : myVocabularies.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} align="center">
-                  沒有資料
-                </TableCell>
-              </TableRow>
-            ) : (
-              myVocabularies.map((vocabulary) => (
-                <TableRow key={vocabulary.vocabularyId}>
-                  <TableCell>{vocabulary.name}</TableCell>
-                  <TableCell>
-                    {LANGUAGE_OPTIONS.find((opt) => opt.value === vocabulary.langUse)?.label || vocabulary.langUse}
-                  </TableCell>
-                  <TableCell>
-                    {LANGUAGE_OPTIONS.find((opt) => opt.value === vocabulary.langExp)?.label || vocabulary.langExp}
-                  </TableCell>
-                  <TableCell>{vocabulary.wordCount}</TableCell>
-                  <TableCell>
-                    {new Date(vocabulary.createdAt).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell align="right">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleView(vocabulary)}
-                      color="primary"
-                    >
-                      <VisibilityIcon />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleEdit(vocabulary)}
-                      color="primary"
-                    >
-                      <EditIcon />
-                    </IconButton>
-                  </TableCell>
+                  <TableCell align="right">操作</TableCell>
                 </TableRow>
-              ))
-            )}
+              </TableHead>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center">
+                      <CircularProgress />
+                    </TableCell>
+                  </TableRow>
+                ) : myVocabularies.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center">
+                      沒有資料
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  myVocabularies.map((vocabulary) => {
+                    const vocabularyIsOwner = isOwner(vocabulary);
+                    return (
+                      <TableRow key={vocabulary.vocabularyId}>
+                        <TableCell>{vocabulary.name}</TableCell>
+                        <TableCell>
+                          {LANGUAGE_OPTIONS.find((opt) => opt.value === vocabulary.langUse)?.label || vocabulary.langUse}
+                        </TableCell>
+                        <TableCell>
+                          {LANGUAGE_OPTIONS.find((opt) => opt.value === vocabulary.langExp)?.label || vocabulary.langExp}
+                        </TableCell>
+                        <TableCell>{vocabulary.wordCount}</TableCell>
+                        <TableCell>
+                          {new Date(vocabulary.createdAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell align="right">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleView(vocabulary)}
+                            color="primary"
+                            title="查看"
+                          >
+                            <VisibilityIcon />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleEdit(vocabulary)}
+                            color="primary"
+                            disabled={!vocabularyIsOwner}
+                            title={vocabularyIsOwner ? "編輯" : "無權限編輯"}
+                          >
+                            <EditIcon />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteVocabulary(vocabulary)}
+                            color="error"
+                            title={vocabularyIsOwner ? "刪除單字本" : "從列表中移除"}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
           </TableBody>
         </Table>
         <TablePagination
@@ -671,6 +771,7 @@ export default function StudentVocabularyPage() {
                                   handleView(vocabulary);
                                 }}
                                 color="primary"
+                                title="查看"
                               >
                                 <VisibilityIcon />
                               </IconButton>
@@ -682,8 +783,28 @@ export default function StudentVocabularyPage() {
                                     handleEdit(vocabulary);
                                   }}
                                   color="primary"
+                                  title="編輯"
                                 >
                                   <EditIcon />
+                                </IconButton>
+                              )}
+                              {vocabulary.isInMyList ? (
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleRemoveVocabulary(vocabulary)}
+                                  color="error"
+                                  title="從列表中移除"
+                                >
+                                  <RemoveIcon />
+                                </IconButton>
+                              ) : (
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleAddVocabulary(vocabulary)}
+                                  color="success"
+                                  title="加入單字本"
+                                >
+                                  <AddIcon />
                                 </IconButton>
                               )}
                             </TableCell>

@@ -51,10 +51,10 @@ export async function POST(
       return NextResponse.json({ error: "找不到單字本" }, { status: 404 });
     }
 
-    // 根據是否使用本地資料庫決定 vocabularyId
-    // MongoDB 使用 vocabulary.id (ObjectId)，本地資料庫使用 vocabularyId (string)
-    const useLocalDb = process.env.DATABASE_local === "true";
-    const vocabId = useLocalDb ? vocabularyId : (vocabulary as any).id;
+    // 使用 vocabulary.id（無論是 MongoDB 還是本地資料庫）
+    // localWordDb.createMany 會自動處理 vocabularyId 到 id 的轉換（如果傳入的是 vocabularyId）
+    // 但這裡我們直接傳入 vocabulary.id，所以不需要轉換
+    const vocabId = (vocabulary as any).id;
 
     // 批量創建單字
     const wordData = words.map((word: any) => ({

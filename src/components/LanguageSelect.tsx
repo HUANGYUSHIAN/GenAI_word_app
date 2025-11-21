@@ -17,6 +17,11 @@ export const LANGUAGE_OPTIONS = [
   { value: "Traditional Chinese", label: "繁體中文" },
 ];
 
+export function getLanguageLabel(langCode: string): string {
+  const option = LANGUAGE_OPTIONS.find(opt => opt.value === langCode)
+  return option?.label || langCode
+}
+
 interface LanguageSelectProps {
   value: string | string[];
   onChange: (value: string | string[]) => void;

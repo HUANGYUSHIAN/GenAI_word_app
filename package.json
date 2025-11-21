@@ -12,6 +12,7 @@
     "db:push": "prisma db push",
     "db:init-local": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/init-local-db.ts",
     "db:migrate-to-mongodb": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/migrate-local-to-mongodb.ts",
+    "db:migrate-schema": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/migrate-mongodb-schema.ts",
     "db:seed": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/create-test-user.ts",
     "db:create-admin": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/create-admin.ts",
     "db:list-admins": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/list-admins.ts",

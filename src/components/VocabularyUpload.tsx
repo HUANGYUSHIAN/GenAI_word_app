@@ -13,6 +13,8 @@ import {
   Snackbar,
 } from "@mui/material";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import SaveIcon from "@mui/icons-material/Save";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import LanguageSelect, { LANGUAGE_OPTIONS } from "./LanguageSelect";
@@ -50,9 +52,22 @@ function mapFrancToLanguage(francCode: string): string {
   return "English";
 }
 
-// 檢測文本的主要語言
+// 移除括號內的內容（可能是註解）
+function removeParenthesesContent(text: string): string {
+  // 移除 () 內的內容
+  return text.replace(/\([^)]*\)/g, "").trim();
+}
+
+// 檢測文本的主要語言（不使用括號內的內容）
 async function detectLanguage(text: string): Promise<string> {
   if (!text || text.trim().length === 0) {
+    return "English";
+  }
+
+  // 移除括號內的內容
+  const cleanedText = removeParenthesesContent(text);
+  
+  if (!cleanedText || cleanedText.trim().length === 0) {
     return "English";
   }
 
@@ -60,7 +75,7 @@ async function detectLanguage(text: string): Promise<string> {
     // 動態導入 franc 以避免 SSR 問題
     const { franc } = await import("franc");
     // 使用 franc 檢測語言（只檢測我們支援的語言）
-    const detected = franc(text, { only: ["jpn", "kor", "eng", "cmn", "zho"] });
+    const detected = franc(cleanedText, { only: ["jpn", "kor", "eng", "cmn", "zho"] });
     return mapFrancToLanguage(detected);
   } catch (error) {
     console.error("Language detection failed:", error);
@@ -74,6 +89,7 @@ export default function VocabularyUpload({
   onUploadError,
 }: VocabularyUploadProps) {
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [notification, setNotification] = useState<{ message: string; severity: "error" | "success" | "info" | "warning" } | null>(null);
@@ -81,6 +97,9 @@ export default function VocabularyUpload({
   const [name, setName] = useState("");
   const [langUse, setLangUse] = useState("English");
   const [langExp, setLangExp] = useState("Traditional Chinese");
+  const [parsedWords, setParsedWords] = useState<WordData[]>([]);
+  const [checked, setChecked] = useState(false);
+  const [fileInputKey, setFileInputKey] = useState(0); // 用於重置文件輸入
 
   const showNotification = (message: string, severity: "error" | "success" | "info" | "warning" = "error") => {
     setNotification({ message, severity });
@@ -93,18 +112,33 @@ export default function VocabularyUpload({
       setError("");
       setSuccess("");
       setNotification(null);
+      // 重置狀態
+      setParsedWords([]);
+      setChecked(false);
       // 重置語言選擇
       setLangUse("English");
       setLangExp("Traditional Chinese");
     }
   };
 
-  const handleFileUpload = async () => {
-    if (!selectedFile) return;
+  // Check 功能：檢查文件內容
+  const handleCheck = async () => {
+    if (!selectedFile) {
+      showNotification("請先選擇檔案");
+      return;
+    }
 
-    setLoading(true);
+    // 檢查單字本名稱
+    if (!vocabularyId && !name.trim()) {
+      showNotification("請輸入單字本名稱");
+      return;
+    }
+
+    setChecking(true);
     setError("");
     setSuccess("");
+    setChecked(false);
+    setParsedWords([]);
 
     try {
       let rows: any[] = [];
@@ -134,13 +168,13 @@ export default function VocabularyUpload({
         rows = XLSX.utils.sheet_to_json(worksheet, { defval: null });
       } else {
         showNotification("不支援的檔案格式，請上傳 .csv 或 .xlsx 檔案");
-        setLoading(false);
+        setChecking(false);
         return;
       }
 
       if (rows.length === 0) {
         showNotification("檔案為空或無法解析");
-        setLoading(false);
+        setChecking(false);
         return;
       }
 
@@ -160,7 +194,7 @@ export default function VocabularyUpload({
         if (!hasExplanation) missingFields.push("Explanation");
         if (!hasSentence) missingFields.push("Sentence");
         showNotification(`檔案格式不符：缺少必要欄位 ${missingFields.join("、")}`);
-        setLoading(false);
+        setChecking(false);
         return;
       }
 
@@ -192,20 +226,20 @@ export default function VocabularyUpload({
           if (!explanationTrimmed) missing.push("Explanation");
           if (!sentenceTrimmed) missing.push("Sentence");
           showNotification(`第 ${rowNum} 行缺少必要欄位：${missing.join("、")}`);
-          setLoading(false);
+          setChecking(false);
           return;
         }
 
         // 檢查可選欄位（如果檔案中有這些欄位，則必須有值）
         if (hasSpelling && !spelling) {
           showNotification(`第 ${rowNum} 行缺少 Spelling 欄位值`);
-          setLoading(false);
+          setChecking(false);
           return;
         }
 
         if (hasPartOfSpeech && !partOfSpeech) {
           showNotification(`第 ${rowNum} 行缺少 PartOfSpeech 欄位值`);
-          setLoading(false);
+          setChecking(false);
           return;
         }
 
@@ -214,7 +248,7 @@ export default function VocabularyUpload({
           const lessThanCount = (sentenceTrimmed.match(/</g) || []).length;
           if (lessThanCount !== 2) {
             showNotification(`第 ${rowNum} 行的 Sentence 格式錯誤：必須包含兩個 < 符號，格式應為 "...<單字<..."`);
-            setLoading(false);
+            setChecking(false);
             return;
           }
 
@@ -222,7 +256,7 @@ export default function VocabularyUpload({
           const parts = sentenceTrimmed.split("<");
           if (parts.length !== 3 || !parts[1] || parts[1].trim() === "") {
             showNotification(`第 ${rowNum} 行的 Sentence 格式錯誤：兩個 < 之間必須有單字，格式應為 "...<單字<..."`);
-            setLoading(false);
+            setChecking(false);
             return;
           }
         }
@@ -235,18 +269,18 @@ export default function VocabularyUpload({
           partOfSpeech: partOfSpeech ? partOfSpeech.toString().trim() : null,
         });
 
-        // 收集所有單字和解釋用於語言檢測
-        allWordTexts.push(wordTrimmed);
-        allExplanationTexts.push(explanationTrimmed);
+        // 收集所有單字和解釋用於語言檢測（移除括號內容）
+        allWordTexts.push(removeParenthesesContent(wordTrimmed));
+        allExplanationTexts.push(removeParenthesesContent(explanationTrimmed));
       }
 
       if (words.length === 0) {
         showNotification("沒有找到有效的單字資料");
-        setLoading(false);
+        setChecking(false);
         return;
       }
 
-      // 4. 語言自動檢測
+      // 4. 語言自動檢測（僅用於更新下拉選單，不自動設定）
       // 合併所有 Word 欄位進行檢測
       const combinedWords = allWordTexts.join(" ");
       const detectedLangUse = await detectLanguage(combinedWords);
@@ -255,7 +289,7 @@ export default function VocabularyUpload({
       const combinedExplanations = allExplanationTexts.join(" ");
       const detectedLangExp = await detectLanguage(combinedExplanations);
 
-      // 自動設定語言
+      // 更新下拉選單（但不自動設定，讓用戶確認）
       setLangUse(detectedLangUse);
       setLangExp(detectedLangExp);
 
@@ -268,32 +302,75 @@ export default function VocabularyUpload({
         showNotification(`警告：檢測到的解釋語言 "${detectedLangExp}" 不在支援列表中，請手動選擇正確的語言`, "warning");
       }
 
+      // 檢查通過，保存解析的單字
+      setParsedWords(words);
+      setChecked(true);
+      showNotification(`檢查通過！找到 ${words.length} 個有效單字。請確認語言設定後點擊「儲存」。`, "success");
+    } catch (error: any) {
+      console.error("Error checking file:", error);
+      showNotification("檢查失敗: " + error.message);
+      // 清除已解析的資料
+      setParsedWords([]);
+      setChecked(false);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  // Save 功能：上傳單字本
+  const handleSave = async () => {
+    if (!checked || parsedWords.length === 0) {
+      showNotification("請先執行檢查");
+      return;
+    }
+
+    // 再次檢查單字本名稱（如果是新單字本）
+    if (!vocabularyId && !name.trim()) {
+      showNotification("請輸入單字本名稱");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setSuccess("");
+
+    try {
       // 上傳到 API
       if (vocabularyId) {
         // 上傳到現有單字本
         const response = await fetch(`/api/admin/vocabularies/${vocabularyId}/words/upload`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ words }),
+          body: JSON.stringify({ words: parsedWords }),
         });
 
         if (response.ok) {
-          showNotification(`成功上傳 ${words.length} 個單字`, "success");
+          showNotification(`成功上傳 ${parsedWords.length} 個單字`, "success");
+          // 清除狀態，允許繼續上傳
           setSelectedFile(null);
+          setParsedWords([]);
+          setChecked(false);
+          setFileInputKey(prev => prev + 1); // 重置文件輸入
+          setName(""); // 清除名稱（如果是新單字本）
+          setLangUse("English");
+          setLangExp("Traditional Chinese");
           if (onUploadSuccess) onUploadSuccess();
         } else {
           const data = await response.json();
           showNotification(data.error || "上傳失敗");
+          // 上傳失敗時清除已解析的資料，讓使用者可以重新檢查
+          setParsedWords([]);
+          setChecked(false);
           if (onUploadError) onUploadError(data.error || "上傳失敗");
         }
       } else {
-        // 建立新單字本並上傳 - 直接傳送解析後的資料
+        // 建立新單字本並上傳 - 使用下拉表單的語言設定
         const response = await fetch("/api/vocabularies/upload", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            words,
-            name: name || "上傳的單字本",
+            words: parsedWords,
+            name: name.trim() || "上傳的單字本",
             langUse: langUse,
             langExp: langExp,
           }),
@@ -302,17 +379,30 @@ export default function VocabularyUpload({
         if (response.ok) {
           const data = await response.json();
           showNotification(`成功建立單字本並上傳 ${data.wordCount} 個單字`, "success");
+          // 清除狀態，允許繼續上傳
           setSelectedFile(null);
+          setParsedWords([]);
+          setChecked(false);
+          setFileInputKey(prev => prev + 1); // 重置文件輸入
+          setName(""); // 清除名稱
+          setLangUse("English");
+          setLangExp("Traditional Chinese");
           if (onUploadSuccess) onUploadSuccess();
         } else {
           const data = await response.json();
           showNotification(data.error || "上傳失敗");
+          // 上傳失敗時清除已解析的資料，讓使用者可以重新檢查
+          setParsedWords([]);
+          setChecked(false);
           if (onUploadError) onUploadError(data.error || "上傳失敗");
         }
       }
     } catch (error: any) {
       console.error("Error uploading file:", error);
       showNotification("上傳失敗: " + error.message);
+      // 上傳失敗時清除已解析的資料
+      setParsedWords([]);
+      setChecked(false);
       if (onUploadError) onUploadError(error.message);
     } finally {
       setLoading(false);
@@ -356,16 +446,21 @@ export default function VocabularyUpload({
       </Snackbar>
 
       <Grid container spacing={2} sx={{ mb: 2 }}>
-        <Grid item xs={12} md={4}>
-          <TextField
-            label="單字本名稱"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            fullWidth
-            placeholder="上傳的單字本"
-          />
-        </Grid>
-        <Grid item xs={12} md={4}>
+        {!vocabularyId && (
+          <Grid item xs={12} md={4}>
+            <TextField
+              label="單字本名稱"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              fullWidth
+              placeholder="上傳的單字本"
+              required
+              error={!name.trim() && checked}
+              helperText={!name.trim() && checked ? "請輸入單字本名稱" : ""}
+            />
+          </Grid>
+        )}
+        <Grid item xs={12} md={vocabularyId ? 6 : 4}>
           <LanguageSelect
             value={langUse}
             onChange={(value) => setLangUse(value as string)}
@@ -373,7 +468,7 @@ export default function VocabularyUpload({
             required
           />
         </Grid>
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} md={vocabularyId ? 6 : 4}>
           <LanguageSelect
             value={langExp}
             onChange={(value) => setLangExp(value as string)}
@@ -383,15 +478,16 @@ export default function VocabularyUpload({
         </Grid>
       </Grid>
 
-      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
         <Button
           variant="outlined"
           component="label"
           startIcon={<UploadFileIcon />}
-          disabled={loading}
+          disabled={loading || checking}
         >
           選擇檔案
           <input
+            key={fileInputKey}
             hidden
             type="file"
             accept=".csv,.xlsx,.xls"
@@ -403,16 +499,33 @@ export default function VocabularyUpload({
         )}
         {selectedFile && (
           <Button
-            variant="contained"
-            onClick={handleFileUpload}
-            disabled={loading}
+            variant="outlined"
+            startIcon={<CheckCircleIcon />}
+            onClick={handleCheck}
+            disabled={loading || checking}
+            color="primary"
           >
-            上傳
+            {checking ? "檢查中..." : "檢查"}
           </Button>
         )}
-        {loading && <CircularProgress size={24} />}
+        {checked && parsedWords.length > 0 && (
+          <Button
+            variant="contained"
+            startIcon={<SaveIcon />}
+            onClick={handleSave}
+            disabled={loading || checking}
+            color="success"
+          >
+            {loading ? "上傳中..." : "儲存"}
+          </Button>
+        )}
+        {(loading || checking) && <CircularProgress size={24} />}
       </Box>
+      {checked && parsedWords.length > 0 && (
+        <Typography variant="body2" color="success.main" sx={{ mt: 1 }}>
+          ✓ 檢查通過：已找到 {parsedWords.length} 個有效單字，請確認語言設定後點擊「儲存」
+        </Typography>
+      )}
     </Paper>
   );
 }
-

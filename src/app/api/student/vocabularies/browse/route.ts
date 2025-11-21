@@ -21,8 +21,25 @@ export async function GET(request: NextRequest) {
     const langUseParams = searchParams.getAll("langUse");
     const langExpParams = searchParams.getAll("langExp");
 
+    // 獲取 student 資料，包含 lvocabuIDs
+    const user = await prisma.user.findUnique({
+      where: { userId: session.userId },
+      include: { studentData: true },
+    });
+
+    if (!user || user.dataType !== "Student" || !user.studentData) {
+      return NextResponse.json({ error: "無權限" }, { status: 403 });
+    }
+
+    const lvocabuIDs = user.studentData.lvocabuIDs || [];
+
     // 構建過濾條件
-    const where: any = {};
+    const where: any = {
+      // 排除自己建立的單字本
+      establisher: {
+        not: session.userId,
+      },
+    };
 
     // Name 過濾（部分匹配）
     if (name) {
@@ -70,6 +87,7 @@ export async function GET(request: NextRequest) {
       establisher: v.establisher,
       wordCount: v._count?.words || 0,
       createdAt: typeof v.createdAt === "string" ? v.createdAt : v.createdAt.toISOString(),
+      isInMyList: lvocabuIDs.includes(v.vocabularyId), // 標記是否已在列表中
     }));
 
     return NextResponse.json({

@@ -7,7 +7,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 const DB_DIR = path.join(process.cwd(), ".local-db");
-const DB_FILES = {
+export const DB_FILES = {
   users: path.join(DB_DIR, "users.json"),
   students: path.join(DB_DIR, "students.json"),
   suppliers: path.join(DB_DIR, "suppliers.json"),
@@ -17,6 +17,7 @@ const DB_FILES = {
   words: path.join(DB_DIR, "words.json"),
   stores: path.join(DB_DIR, "stores.json"),
   comments: path.join(DB_DIR, "comments.json"),
+  feedback_forms: path.join(DB_DIR, "feedback_forms.json"),
 };
 
 // 確保資料庫目錄存在
@@ -40,7 +41,7 @@ export function initLocalDb() {
 }
 
 // 讀取資料並修復舊的嵌套結構
-function readData<T>(filePath: string): T[] {
+export function readData<T>(filePath: string): T[] {
   try {
     if (!fs.existsSync(filePath)) {
       return [];
@@ -290,12 +291,54 @@ export const localStudentDb = {
     const newStudent = {
       id: generateObjectId(),
       ...data,
+      lvocabuIDs: data.lvocabuIDs || [],
+      lcouponIDs: data.lcouponIDs || [],
+      lfriendIDs: data.lfriendIDs || [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     students.push(newStudent);
     writeData(DB_FILES.students, students);
     return newStudent;
+  },
+
+  update: async (where: { userId: string }, data: any) => {
+    const students = readData<any>(DB_FILES.students);
+    const index = students.findIndex((s) => s.userId === where.userId);
+    if (index === -1) {
+      throw new Error("Student not found");
+    }
+    
+    // 處理數組字段的更新（如 lvocabuIDs 的 push）
+    if (data.lvocabuIDs && typeof data.lvocabuIDs === 'object' && data.lvocabuIDs.push) {
+      // Prisma 的 push 操作：{ lvocabuIDs: { push: "vocabularyId" } }
+      const existingIds = students[index].lvocabuIDs || [];
+      const newId = data.lvocabuIDs.push;
+      if (!existingIds.includes(newId)) {
+        existingIds.push(newId);
+      }
+      students[index] = {
+        ...students[index],
+        lvocabuIDs: existingIds,
+        updatedAt: new Date().toISOString(),
+      };
+    } else if (data.lvocabuIDs && Array.isArray(data.lvocabuIDs)) {
+      // 直接設置數組（用於移除操作）
+      students[index] = {
+        ...students[index],
+        lvocabuIDs: data.lvocabuIDs,
+        updatedAt: new Date().toISOString(),
+      };
+    } else {
+      students[index] = {
+        ...students[index],
+        ...data,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    
+    writeData(DB_FILES.students, students);
+    return students[index];
   },
 
   delete: async (where: { userId: string }) => {
@@ -371,8 +414,10 @@ export const localVocabularyDb = {
       }
       if (options.include._count) {
         const words = readData<any>(DB_FILES.words);
+        // 計算單字數：words 的 vocabularyId 應該匹配 vocabulary.id
+        const wordCount = words.filter((w: any) => w.vocabularyId === vocabulary.id).length;
         vocabulary._count = {
-          words: words.filter((w) => w.vocabularyId === vocabulary.id).length,
+          words: wordCount,
         };
       }
     }
@@ -411,8 +456,24 @@ export const localVocabularyDb = {
       
       // Establisher 過濾
       if (options.where.establisher) {
+        if (options.where.establisher.not) {
+          // 排除特定建立者
+          vocabularies = vocabularies.filter((v: any) =>
+            v.establisher !== options.where.establisher.not
+          );
+        } else {
+          // 匹配特定建立者
+          vocabularies = vocabularies.filter((v: any) =>
+            v.establisher === options.where.establisher
+          );
+        }
+      }
+      
+      // VocabularyId 過濾（用於 in 操作）
+      if (options.where.vocabularyId?.in) {
+        const vocabularyIds = options.where.vocabularyId.in;
         vocabularies = vocabularies.filter((v: any) =>
-          v.establisher === options.where.establisher
+          vocabularyIds.includes(v.vocabularyId)
         );
       }
     }
@@ -434,12 +495,18 @@ export const localVocabularyDb = {
     if (options?.include) {
       if (options.include._count) {
         const words = readData<any>(DB_FILES.words);
-        vocabularies = vocabularies.map((v: any) => ({
-          ...v,
-          _count: {
-            words: words.filter((w) => w.vocabularyId === v.id).length,
-          },
-        }));
+        vocabularies = vocabularies.map((v: any) => {
+          // 計算單字數：words 的 vocabularyId 應該匹配 vocabulary.id
+          // 在本地資料庫中，words.vocabularyId 存儲的是 vocabulary.id（內部 ID）
+          const wordCount = words.filter((w: any) => w.vocabularyId === v.id).length;
+          
+          return {
+            ...v,
+            _count: {
+              words: wordCount,
+            },
+          };
+        });
       }
     }
     
@@ -708,6 +775,56 @@ export const localCouponDb = {
     const filtered = coupons.filter((c) => c.couponId !== where.couponId);
     writeData(DB_FILES.coupons, filtered);
     return { couponId: where.couponId };
+  },
+};
+
+// FeedbackForm 操作
+export const localFeedbackFormDb = {
+  findFirst: async (options?: { orderBy?: any }) => {
+    const forms = readData<any>(DB_FILES.feedback_forms);
+    if (forms.length === 0) return null;
+    
+    if (options?.orderBy) {
+      const [key, order] = Object.entries(options.orderBy)[0];
+      forms.sort((a: any, b: any) => {
+        const aVal = a[key];
+        const bVal = b[key];
+        if (order === "desc") {
+          return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
+        }
+        return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      });
+    }
+    
+    return forms[0] || null;
+  },
+
+  create: async (data: any) => {
+    const forms = readData<any>(DB_FILES.feedback_forms);
+    const newForm = {
+      id: generateObjectId(),
+      ...data,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    forms.push(newForm);
+    writeData(DB_FILES.feedback_forms, forms);
+    return newForm;
+  },
+
+  update: async (where: { id: string }, data: any) => {
+    const forms = readData<any>(DB_FILES.feedback_forms);
+    const index = forms.findIndex((f) => f.id === where.id);
+    if (index === -1) {
+      throw new Error("FeedbackForm not found");
+    }
+    forms[index] = {
+      ...forms[index],
+      ...data,
+      updatedAt: new Date().toISOString(),
+    };
+    writeData(DB_FILES.feedback_forms, forms);
+    return forms[index];
   },
 };
 

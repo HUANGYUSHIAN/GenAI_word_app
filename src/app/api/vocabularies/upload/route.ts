@@ -20,6 +20,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "無效的單字資料" }, { status: 400 });
     }
 
+    // 檢查單字數量（必須超過20個）
+    if (words.length < 20) {
+      return NextResponse.json(
+        { error: "單字本必須包含至少20個單字" },
+        { status: 400 }
+      );
+    }
+
     // 檢查是否有基本欄位
     const hasBasic = words.every((w: any) => w.word && w.explanation);
     if (!hasBasic) {
@@ -69,6 +77,33 @@ export async function POST(request: NextRequest) {
     await prisma.word.createMany({
       data: wordData,
     });
+
+    // 如果用戶是 student，自動將單字本添加到 lvocabuIDs
+    try {
+      const user = await prisma.user.findUnique({
+        where: { userId: session.userId },
+        include: { studentData: true },
+      });
+
+      if (user && user.dataType === "Student" && user.studentData) {
+        // 檢查是否已經在列表中
+        const lvocabuIDs = user.studentData.lvocabuIDs || [];
+        if (!lvocabuIDs.includes(vocabularyId!)) {
+          // 添加到 lvocabuIDs
+          await prisma.student.update({
+            where: { userId: session.userId },
+            data: {
+              lvocabuIDs: {
+                push: vocabularyId!,
+              },
+            },
+          });
+        }
+      }
+    } catch (error) {
+      // 如果添加失敗，記錄錯誤但不影響上傳結果
+      console.error("Error adding vocabulary to student lvocabuIDs:", error);
+    }
 
     return NextResponse.json({
       success: true,

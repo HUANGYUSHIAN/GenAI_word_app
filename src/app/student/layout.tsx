@@ -34,6 +34,8 @@ const menuItems = [
   { text: "設定", icon: <SettingsIcon />, path: "/student/setting" },
   { text: "單字遊戲", icon: <SportsEsportsIcon />, path: "/student/game" },
   { text: "單字複習", icon: <HistoryIcon />, path: "/student/review" },
+  { text: "單字測驗", icon: <SportsEsportsIcon />, path: "/student/test" },
+  { text: "意見回饋", icon: <SettingsIcon />, path: "/student/feedback" },
 ];
 
 function StudentLayoutContent({ children }: { children: React.ReactNode }) {

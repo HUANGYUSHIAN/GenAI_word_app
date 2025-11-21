@@ -4,7 +4,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
-import { initLocalDb, localUserDb, localStudentDb, localSupplierDb, localAdminDb, localVocabularyDb, localWordDb, localCouponDb } from "./local-db";
+import { initLocalDb, localUserDb, localStudentDb, localSupplierDb, localAdminDb, localVocabularyDb, localWordDb, localCouponDb, localFeedbackFormDb, readData, DB_FILES } from "./local-db";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -54,7 +54,29 @@ function createLocalPrisma() {
         return localUserDb.delete(options.where);
       },
     },
-    student: localStudentDb,
+    student: {
+      ...localStudentDb,
+      findMany: async (options?: { where?: any }) => {
+        const students = readData<any>(DB_FILES.students);
+        let filtered = students;
+        
+        if (options?.where) {
+          // 處理 lvocabuIDs.has 過濾（查找包含特定 vocabularyId 的 students）
+          if (options.where.lvocabuIDs?.has) {
+            const vocabularyId = options.where.lvocabuIDs.has;
+            filtered = filtered.filter((s: any) => {
+              const lvocabuIDs = s.lvocabuIDs || [];
+              return lvocabuIDs.includes(vocabularyId);
+            });
+          }
+        }
+        
+        return filtered;
+      },
+      update: async (options: { where: { userId: string }; data: any }) => {
+        return localStudentDb.update(options.where, options.data);
+      },
+    },
     supplier: localSupplierDb,
     admin: localAdminDb,
     vocabulary: {
@@ -152,6 +174,17 @@ function createLocalPrisma() {
         };
       },
       delete: localCouponDb.delete,
+    },
+    feedbackForm: {
+      findFirst: async (options?: { orderBy?: any }) => {
+        return localFeedbackFormDb.findFirst(options);
+      },
+      create: async (options: { data: any }) => {
+        return localFeedbackFormDb.create(options.data);
+      },
+      update: async (options: { where: { id: string }; data: any }) => {
+        return localFeedbackFormDb.update(options.where, options.data);
+      },
     },
     $disconnect: async () => {
       // 本地資料庫不需要斷開連接
