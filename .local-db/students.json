@@ -1,0 +1,59 @@
+[
+  {
+    "id": "6916b787b565f1996ee6a950",
+    "userId": "Quil89V9hYOFcqJDiSGQBKB9KDBCVm",
+    "lvocabuIDs": [],
+    "lcouponIDs": [],
+    "paraGame": null,
+    "payments": null,
+    "lfriendIDs": [],
+    "createdAt": "2025-11-14T05:00:55.701Z",
+    "updatedAt": "2025-11-14T05:00:55.701Z"
+  },
+  {
+    "id": "6916b787b565f1996ee6a951",
+    "userId": "DMPYGRj5rMmAsPJwkx3VBMYIDaxOR7",
+    "lvocabuIDs": [],
+    "lcouponIDs": [],
+    "paraGame": null,
+    "payments": null,
+    "lfriendIDs": [],
+    "createdAt": "2025-11-14T05:00:55.736Z",
+    "updatedAt": "2025-11-14T05:00:55.736Z"
+  },
+  {
+    "id": "6916d07c3236ce6fe50151a1",
+    "userId": "T72RKi1zmyoybLRCHpnP9BrT8uUImy",
+    "lvocabuIDs": [],
+    "lcouponIDs": [],
+    "paraGame": null,
+    "payments": null,
+    "lfriendIDs": [],
+    "createdAt": "2025-11-14T06:47:24.407Z",
+    "updatedAt": "2025-11-14T06:47:24.407Z"
+  },
+  {
+    "id": "69175027a3d0db529d7b72a1",
+    "userId": "WwBmEoQOPtX1DdMApBuIqvA1d8MkLP",
+    "lvocabuIDs": [],
+    "lcouponIDs": [],
+    "paraGame": null,
+    "payments": null,
+    "lfriendIDs": [],
+    "createdAt": "2025-11-14T15:52:07.873Z",
+    "updatedAt": "2025-11-14T15:52:07.873Z"
+  },
+  {
+    "id": "692036a6cfb64bfa9c277c0f",
+    "userId": "nSDyTDwsMFlQISf5Pz93CItf8c66f3",
+    "lvocabuIDs": [
+      "RO1MHL0CHKnfRAFo89cofWJ215UOIJ"
+    ],
+    "lcouponIDs": [],
+    "paraGame": null,
+    "payments": null,
+    "lfriendIDs": [],
+    "createdAt": "2025-11-21T09:53:42.413Z",
+    "updatedAt": "2025-11-21T09:56:02.547Z"
+  }
+]

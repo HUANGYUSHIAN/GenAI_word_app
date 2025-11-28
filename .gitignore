@@ -31,19 +31,15 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
-.env*
-# .env.local
-
-# vercel
-.vercel
+.env
+.env.*
+!.env.example
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 
-.vercel
-
-# local database files
-.local-db/
+# local database files (commented out to allow committing to git)
+# .local-db/
 
 .vercel
