@@ -6356,5 +6356,14 @@
     "sentence": "お皿（され）がテーブルから落（お）ちて<割れた<。",
     "createdAt": "2025-11-21T09:55:10.046Z",
     "updatedAt": "2025-11-21T09:55:10.046Z"
+  },
+  {
+    "id": "1764313785974-g1eamgaf0al",
+    "vocabularyId": "1764313785968-4g68jogd6qr",
+    "word": "updated_test",
+    "explanation": "測試",
+    "sentence": "This is a <test<sentence.",
+    "createdAt": "2025-11-28T07:09:45.974Z",
+    "updatedAt": "2025-11-28T07:09:45.985Z"
   }
 ]

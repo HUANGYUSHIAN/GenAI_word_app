@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "id": "1764313785989-o3q8u5levci",
+    "couponId": "TEST_COUPON_1764313785989_m3d571s",
+    "name": "Test Coupon",
+    "period": "2025-12-28T07:09:45.989Z",
+    "text": "Test coupon description",
+    "createdAt": "2025-11-28T07:09:45.989Z",
+    "updatedAt": "2025-11-28T07:09:45.989Z"
+  }
+]
