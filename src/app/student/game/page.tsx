@@ -67,13 +67,31 @@ interface FallingLetter {
   speed: number;
 }
 
+interface Cactus {
+  id: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  speed: number;
+}
+
+interface FlyingLetter {
+  id: number;
+  letter: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 interface ActivePowerUp {
   type: "spread" | "damage" | "shield" | "rapid";
   endTime: number;
 }
 
 type Difficulty = "easy" | "normal" | "hard" | "hell";
-type GameType = "none" | "plane-shooter" | "game-flight";
+type GameType = "none" | "plane-shooter" | "dino-game";
 
 interface DifficultySettings {
   name: string;
@@ -227,6 +245,18 @@ interface GameState {
   playerInvincible: boolean;
   invincibleEndTime: number;
   difficulty: Difficulty;
+  // 小恐龍遊戲專用狀態
+  dinoY?: number;
+  dinoVelocity?: number;
+  isJumping?: boolean;
+  groundY?: number;
+  cacti?: Cactus[];
+  flyingLetters?: FlyingLetter[];
+  gameSpeed?: number;
+  isDashing?: boolean;
+  dashEndTime?: number;
+  lastCactusSpawn?: number;
+  lastLetterSpawn?: number;
 }
 
 // ==================== 遊戲常數 ====================
@@ -243,6 +273,21 @@ const LETTER_FALL_SPEED = 1.5;
 const MAX_PLAYER_HEALTH = 100;
 const WORDS_FOR_DOUBLE_SCORE = 5;
 
+// 小恐龍遊戲常數
+const DINO_WIDTH = 40;
+const DINO_HEIGHT = 50;
+const DINO_START_X = 100;
+const DINO_GROUND_Y = CANVAS_HEIGHT - 100;
+const DINO_JUMP_POWER = -15;
+const GRAVITY = 0.8;
+const CACTUS_WIDTH = 30;
+const CACTUS_HEIGHT = 60;
+const CACTUS_SPAWN_INTERVAL = 2000;
+const LETTER_SPAWN_INTERVAL = 3000;
+const LETTER_SIZE = 30;
+const DASH_DURATION = 2000;
+const INVINCIBLE_DURATION = 3000;
+
 // ==================== 遊戲列表 ====================
 const GAME_LIST = [
   {
@@ -252,24 +297,10 @@ const GAME_LIST = [
     color: "#1976d2",
   },
   {
-    id: "game-flight",
-    name: "✈️ 單字飛機大戰",
-    description: "經典飛機大戰遊戲，收集字母拼出單字！",
-    color: "#9c27b0",
-  },
-  {
-    id: "coming-soon-1",
-    name: "🎯 單字射擊（即將推出）",
-    description: "射擊正確的單字翻譯",
-    color: "#9e9e9e",
-    disabled: true,
-  },
-  {
-    id: "coming-soon-2",
-    name: "🧩 單字拼圖（即將推出）",
-    description: "拖拽字母拼出正確單字",
-    color: "#9e9e9e",
-    disabled: true,
+    id: "dino-game",
+    name: "🦕 離線小恐龍",
+    description: "跳起來收集字母拼出單字，撞到仙人掌會扣血，完成單字可復活無敵衝刺！",
+    color: "#4caf50",
   },
 ];
 
@@ -383,9 +414,6 @@ export default function StudentGamePage() {
   };
 
   const getDifficultySettings = (): Record<Difficulty, DifficultySettings> => {
-    if (selectedGame === "game-flight") {
-      return GAME_FLIGHT_DIFFICULTY;
-    }
     return PLANE_SHOOTER_DIFFICULTY;
   };
 
@@ -404,8 +432,55 @@ export default function StudentGamePage() {
     const firstWord = selectNextWord(loadedWords);
     if (!firstWord) return;
 
-    const settings = getDifficultySettings()[selectedDifficulty];
+    if (selectedGame === "dino-game") {
+      // 小恐龍遊戲初始化
+      const initialState: GameState = {
+        playerX: 0,
+        playerY: 0,
+        playerHealth: MAX_PLAYER_HEALTH,
+        maxPlayerHealth: MAX_PLAYER_HEALTH,
+        bossX: 0,
+        bossY: 0,
+        bossHealth: 0,
+        maxBossHealth: 0,
+        bullets: [],
+        fallingLetters: [],
+        activePowerUps: [],
+        score: 0,
+        correctLetters: firstWord.spelling.split(""),
+        currentWord: firstWord.word,
+        targetSpelling: firstWord.spelling,
+        collectedLetters: [],
+        wordsCompleted: 0,
+        isGameOver: false,
+        isVictory: false,
+        isPaused: false,
+        bossPhase: 1,
+        bossAttackCooldown: 0,
+        playerInvincible: false,
+        invincibleEndTime: 0,
+        difficulty: "normal",
+        dinoY: DINO_GROUND_Y,
+        dinoVelocity: 0,
+        isJumping: false,
+        groundY: DINO_GROUND_Y,
+        cacti: [],
+        flyingLetters: [],
+        gameSpeed: 5,
+        isDashing: false,
+        dashEndTime: 0,
+        lastCactusSpawn: Date.now(),
+        lastLetterSpawn: Date.now(),
+      };
+      gameStateRef.current = initialState;
+      setDisplayState(initialState);
+      setGameStarted(true);
+      setShowResult(false);
+      return;
+    }
 
+    // 飛機大戰遊戲初始化
+    const settings = getDifficultySettings()[selectedDifficulty];
     const initialState: GameState = {
       playerX: CANVAS_WIDTH / 2 - PLAYER_WIDTH / 2,
       playerY: CANVAS_HEIGHT - PLAYER_HEIGHT - 20,
@@ -440,11 +515,158 @@ export default function StudentGamePage() {
     setShowResult(false);
   };
 
+  const renderDinoGame = useCallback((state: GameState) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // 背景（天空和地面）
+    ctx.fillStyle = "#87CEEB";
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    
+    // 地面
+    ctx.fillStyle = "#8B7355";
+    ctx.fillRect(0, DINO_GROUND_Y + DINO_HEIGHT, CANVAS_WIDTH, CANVAS_HEIGHT - DINO_GROUND_Y - DINO_HEIGHT);
+    
+    // 地面線
+    ctx.strokeStyle = "#654321";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, DINO_GROUND_Y + DINO_HEIGHT);
+    ctx.lineTo(CANVAS_WIDTH, DINO_GROUND_Y + DINO_HEIGHT);
+    ctx.stroke();
+
+    // 繪製仙人掌
+    if (state.cacti) {
+      state.cacti.forEach((cactus) => {
+        ctx.fillStyle = "#228B22";
+        ctx.fillRect(cactus.x, cactus.y, cactus.width, cactus.height);
+        // 仙人掌刺
+        ctx.fillStyle = "#006400";
+        for (let i = 0; i < cactus.height; i += 10) {
+          ctx.fillRect(cactus.x - 3, cactus.y + i, 3, 5);
+          ctx.fillRect(cactus.x + cactus.width, cactus.y + i, 3, 5);
+        }
+      });
+    }
+
+    // 繪製飛行字母
+    if (state.flyingLetters) {
+      state.flyingLetters.forEach((letter) => {
+        const nextIndex = state.collectedLetters.length;
+        const expected = state.correctLetters[nextIndex] || "";
+        const isCorrect = letter.letter === expected;
+
+        ctx.fillStyle = isCorrect ? "#00ff00" : "#ffff00";
+        ctx.fillRect(letter.x, letter.y, letter.width, letter.height);
+        ctx.strokeStyle = isCorrect ? "#00aa00" : "#aaaa00";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(letter.x, letter.y, letter.width, letter.height);
+        ctx.fillStyle = "#000000";
+        ctx.font = "bold 20px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(letter.letter.toUpperCase(), letter.x + letter.width / 2, letter.y + letter.height / 2 + 7);
+      });
+    }
+
+    // 繪製小恐龍
+    const dinoY = state.dinoY || DINO_GROUND_Y;
+    const isInvincible = state.playerInvincible && Date.now() < state.invincibleEndTime;
+    const isDashing = state.isDashing && Date.now() < (state.dashEndTime || 0);
+    
+    if (!isInvincible || Math.floor(Date.now() / 100) % 2 === 0) {
+      // 恐龍身體
+      ctx.fillStyle = isDashing ? "#ff6600" : "#4a4a4a";
+      ctx.fillRect(DINO_START_X, dinoY, DINO_WIDTH, DINO_HEIGHT);
+      
+      // 恐龍眼睛
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(DINO_START_X + 10, dinoY + 10, 8, 8);
+      ctx.fillRect(DINO_START_X + 22, dinoY + 10, 8, 8);
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(DINO_START_X + 12, dinoY + 12, 4, 4);
+      ctx.fillRect(DINO_START_X + 24, dinoY + 12, 4, 4);
+      
+      // 恐龍腿
+      ctx.fillStyle = isDashing ? "#ff6600" : "#4a4a4a";
+      const legOffset = Math.sin(Date.now() / 100) * 5;
+      ctx.fillRect(DINO_START_X + 5, dinoY + DINO_HEIGHT, 8, 10);
+      ctx.fillRect(DINO_START_X + 27, dinoY + DINO_HEIGHT + legOffset, 8, 10);
+    }
+
+    // 無敵效果
+    if (isInvincible) {
+      ctx.strokeStyle = "#00ffff";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(DINO_START_X - 5, dinoY - 5, DINO_WIDTH + 10, DINO_HEIGHT + 10);
+    }
+
+    // 衝刺效果
+    if (isDashing) {
+      ctx.fillStyle = "rgba(255, 102, 0, 0.3)";
+      ctx.fillRect(DINO_START_X - 20, dinoY, 20, DINO_HEIGHT);
+    }
+
+    // UI 資訊
+    ctx.fillStyle = "#333333";
+    ctx.fillRect(10, 10, 200, 80);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 16px Arial";
+    ctx.textAlign = "left";
+    ctx.fillText(`分數: ${state.score}`, 20, 35);
+    ctx.fillText(`HP: ${state.playerHealth}/${state.maxPlayerHealth}`, 20, 55);
+    
+    // 血條
+    ctx.fillStyle = "#ff0000";
+    ctx.fillRect(20, 65, 180, 15);
+    ctx.fillStyle = "#00ff00";
+    ctx.fillRect(20, 65, (180 * state.playerHealth) / state.maxPlayerHealth, 15);
+    ctx.strokeStyle = "#ffffff";
+    ctx.strokeRect(20, 65, 180, 15);
+
+    // 當前單字提示
+    if (state.currentWord) {
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 18px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(`提示: ${state.currentWord.explanation}`, CANVAS_WIDTH / 2, 30);
+
+      const spelling = state.targetSpelling.toUpperCase();
+      let displayText = "";
+      for (let i = 0; i < spelling.length; i++) {
+        displayText += i < state.collectedLetters.length ? spelling[i] : "_";
+        displayText += " ";
+      }
+      ctx.fillStyle = "#00ffff";
+      ctx.font = "bold 24px monospace";
+      ctx.fillText(displayText, CANVAS_WIDTH / 2, 55);
+    }
+
+    // 暫停
+    if (state.isPaused) {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 48px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("暫停", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+      ctx.font = "24px Arial";
+      ctx.fillText("按 ESC 繼續", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 40);
+    }
+  }, []);
+
   const renderGame = useCallback((state: GameState) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
+    // 如果是小恐龍遊戲，使用專用渲染函數
+    if (selectedGame === "dino-game") {
+      renderDinoGame(state);
+      return;
+    }
 
     const settings = getDifficultySettings()[state.difficulty];
 
@@ -630,10 +852,10 @@ export default function StudentGamePage() {
       ctx.font = "24px Arial";
       ctx.fillText("按 ESC 繼續", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 40);
     }
-  }, [selectedGame]);
+  }, [selectedGame, renderDinoGame]);
 
   useEffect(() => {
-    if (!gameStarted || (selectedGame !== "plane-shooter" && selectedGame !== "game-flight")) return;
+    if (!gameStarted || (selectedGame !== "plane-shooter" && selectedGame !== "dino-game")) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       keysRef.current.add(e.key.toLowerCase());
@@ -641,6 +863,15 @@ export default function StudentGamePage() {
         gameStateRef.current.isPaused = !gameStateRef.current.isPaused;
       }
       if (e.key === " ") e.preventDefault();
+      
+      // 小恐龍遊戲：空格鍵或上鍵跳躍
+      if (selectedGame === "dino-game" && (e.key === " " || e.key === "ArrowUp" || e.key === "w")) {
+        const state = gameStateRef.current;
+        if (!state.isJumping && state.dinoY === (state.groundY || DINO_GROUND_Y)) {
+          state.dinoVelocity = DINO_JUMP_POWER;
+          state.isJumping = true;
+        }
+      }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -659,6 +890,195 @@ export default function StudentGamePage() {
       }
 
       const now = Date.now();
+
+      // 小恐龍遊戲邏輯
+      if (selectedGame === "dino-game") {
+        const groundY = state.groundY || DINO_GROUND_Y;
+        let dinoY = state.dinoY || groundY;
+        let dinoVelocity = state.dinoVelocity || 0;
+
+        // 重力
+        dinoVelocity += GRAVITY;
+        dinoY += dinoVelocity;
+
+        // 落地檢測
+        if (dinoY >= groundY) {
+          dinoY = groundY;
+          dinoVelocity = 0;
+          state.isJumping = false;
+        }
+
+        state.dinoY = dinoY;
+        state.dinoVelocity = dinoVelocity;
+
+        // 生成仙人掌
+        if (!state.lastCactusSpawn) state.lastCactusSpawn = now;
+        if (now - state.lastCactusSpawn > CACTUS_SPAWN_INTERVAL) {
+          if (!state.cacti) state.cacti = [];
+          state.cacti.push({
+            id: Date.now(),
+            x: CANVAS_WIDTH,
+            y: groundY - CACTUS_HEIGHT,
+            width: CACTUS_WIDTH,
+            height: CACTUS_HEIGHT,
+            speed: state.gameSpeed || 5,
+          });
+          state.lastCactusSpawn = now;
+        }
+
+        // 生成飛行字母
+        if (!state.lastLetterSpawn) state.lastLetterSpawn = now;
+        if (now - state.lastLetterSpawn > LETTER_SPAWN_INTERVAL && state.correctLetters.length > 0) {
+          if (!state.flyingLetters) state.flyingLetters = [];
+          const nextIndex = state.collectedLetters.length;
+          const isCorrect = Math.random() < 0.6;
+          let letter: string;
+
+          if (isCorrect && nextIndex < state.correctLetters.length) {
+            letter = state.correctLetters[nextIndex];
+          } else {
+            const allLetters = state.correctLetters;
+            letter = allLetters[Math.floor(Math.random() * allLetters.length)];
+          }
+
+          state.flyingLetters.push({
+            id: Date.now() + Math.random(),
+            letter,
+            x: CANVAS_WIDTH,
+            y: groundY - 100 - Math.random() * 200,
+            width: LETTER_SIZE,
+            height: LETTER_SIZE,
+          });
+          state.lastLetterSpawn = now;
+        }
+
+        // 更新仙人掌位置
+        if (state.cacti) {
+          state.cacti = state.cacti
+            .map((cactus) => ({
+              ...cactus,
+              x: cactus.x - (state.gameSpeed || 5) * (state.isDashing && now < (state.dashEndTime || 0) ? 2 : 1),
+            }))
+            .filter((cactus) => cactus.x > -CACTUS_WIDTH);
+
+          // 碰撞檢測：恐龍與仙人掌
+          const dinoRect = {
+            x: DINO_START_X,
+            y: dinoY,
+            width: DINO_WIDTH,
+            height: DINO_HEIGHT,
+          };
+
+          state.cacti.forEach((cactus) => {
+            if (
+              dinoRect.x < cactus.x + cactus.width &&
+              dinoRect.x + dinoRect.width > cactus.x &&
+              dinoRect.y < cactus.y + cactus.height &&
+              dinoRect.y + dinoRect.height > cactus.y
+            ) {
+              // 碰撞發生
+              if (!state.playerInvincible || now > (state.invincibleEndTime || 0)) {
+                if (!state.isDashing || now > (state.dashEndTime || 0)) {
+                  state.playerHealth -= 20;
+                  state.playerInvincible = true;
+                  state.invincibleEndTime = now + INVINCIBLE_DURATION;
+                }
+              }
+            }
+          });
+        }
+
+        // 更新飛行字母位置
+        if (state.flyingLetters) {
+          state.flyingLetters = state.flyingLetters
+            .map((letter) => ({
+              ...letter,
+              x: letter.x - (state.gameSpeed || 5),
+            }))
+            .filter((letter) => letter.x > -LETTER_SIZE);
+
+          // 收集字母檢測
+          const dinoRect = {
+            x: DINO_START_X,
+            y: dinoY,
+            width: DINO_WIDTH,
+            height: DINO_HEIGHT,
+          };
+
+          state.flyingLetters = state.flyingLetters.filter((letter) => {
+            if (
+              dinoRect.x < letter.x + letter.width &&
+              dinoRect.x + dinoRect.width > letter.x &&
+              dinoRect.y < letter.y + letter.height &&
+              dinoRect.y + dinoRect.height > letter.y
+            ) {
+              // 收集到字母
+              const nextIndex = state.collectedLetters.length;
+              if (nextIndex < state.correctLetters.length) {
+                const expectedLetter = state.correctLetters[nextIndex];
+                if (letter.letter === expectedLetter) {
+                  state.collectedLetters.push(letter.letter);
+                  state.score += 10;
+
+                  // 完成單字
+                  if (state.collectedLetters.length === state.correctLetters.length) {
+                    state.wordsCompleted++;
+                    state.score += 50;
+
+                    // 復活無敵衝刺功能
+                    if (state.playerHealth < state.maxPlayerHealth) {
+                      state.playerHealth = Math.min(state.maxPlayerHealth, state.playerHealth + 30);
+                    }
+                    state.playerInvincible = true;
+                    state.invincibleEndTime = now + INVINCIBLE_DURATION;
+                    state.isDashing = true;
+                    state.dashEndTime = now + DASH_DURATION;
+
+                    // 選擇下一個單字
+                    const nextWord = selectNextWord(wordsRef.current);
+                    if (nextWord) {
+                      state.currentWord = nextWord.word;
+                      state.targetSpelling = nextWord.spelling;
+                      state.correctLetters = nextWord.spelling.split("");
+                      state.collectedLetters = [];
+                    }
+                  }
+                }
+              }
+              return false; // 移除已收集的字母
+            }
+            return true;
+          });
+        }
+
+        // 檢查無敵狀態
+        if (state.playerInvincible && now > (state.invincibleEndTime || 0)) {
+          state.playerInvincible = false;
+        }
+
+        // 檢查衝刺狀態
+        if (state.isDashing && now > (state.dashEndTime || 0)) {
+          state.isDashing = false;
+        }
+
+        // 遊戲速度逐漸增加
+        if (state.gameSpeed) {
+          state.gameSpeed = Math.min(15, state.gameSpeed + 0.001);
+        }
+
+        // 檢查遊戲結束
+        if (state.playerHealth <= 0) {
+          state.isGameOver = true;
+          setShowResult(true);
+        }
+
+        renderGame(state);
+        setDisplayState({ ...state });
+        gameLoopRef.current = requestAnimationFrame(gameLoop);
+        return;
+      }
+
+      // 飛機大戰遊戲邏輯
       const settings = getDifficultySettings()[state.difficulty];
 
       // 玩家移動
@@ -1096,24 +1516,46 @@ export default function StudentGamePage() {
             遊戲說明
           </Typography>
           <Box sx={{ mb: 2 }}>
-            <Typography variant="body2" color="text.secondary">
-              • WASD 或 方向鍵移動飛機
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              • 空白鍵 或 J 鍵發射子彈
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              • 收集正確的字母（綠色）拼出單字
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              • 完成單字獲得增強效果
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              • <b>打敗 Boss 即可獲勝！</b>
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              • 完成 5 個單字後，所有分數 <b>x2</b>！
-            </Typography>
+            {selectedGame === "dino-game" ? (
+              <>
+                <Typography variant="body2" color="text.secondary">
+                  • 空白鍵、上鍵 或 W 鍵跳躍
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  • 跳起來收集字母（綠色為正確字母）拼出單字
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  • 撞到仙人掌會扣血，小心避開！
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  • <b>完成單字可復活、無敵並獲得衝刺效果！</b>
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  • 遊戲速度會逐漸增加，挑戰你的反應！
+                </Typography>
+              </>
+            ) : (
+              <>
+                <Typography variant="body2" color="text.secondary">
+                  • WASD 或 方向鍵移動飛機
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  • 空白鍵 或 J 鍵發射子彈
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  • 收集正確的字母（綠色）拼出單字
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  • 完成單字獲得增強效果
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  • <b>打敗 Boss 即可獲勝！</b>
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  • 完成 5 個單字後，所有分數 <b>x2</b>！
+                </Typography>
+              </>
+            )}
           </Box>
 
           <FormControl fullWidth sx={{ mb: 2 }}>
@@ -1127,60 +1569,64 @@ export default function StudentGamePage() {
             </Select>
           </FormControl>
 
-          <Typography variant="subtitle1" sx={{ mb: 1 }}>
-            選擇難度
-          </Typography>
-          <ToggleButtonGroup
-            value={selectedDifficulty}
-            exclusive
-            onChange={(_, value) => value && setSelectedDifficulty(value)}
-            fullWidth
-            sx={{ mb: 2 }}
-          >
-            {(Object.keys(difficultySettings) as Difficulty[]).map((diff) => (
-              <ToggleButton
-                key={diff}
-                value={diff}
-                sx={{
-                  color: difficultySettings[diff].color,
-                  "&.Mui-selected": {
-                    backgroundColor: difficultySettings[diff].color,
-                    color: "#fff",
-                    "&:hover": {
-                      backgroundColor: difficultySettings[diff].color,
-                    },
-                  },
-                }}
+          {selectedGame !== "dino-game" && (
+            <>
+              <Typography variant="subtitle1" sx={{ mb: 1 }}>
+                選擇難度
+              </Typography>
+              <ToggleButtonGroup
+                value={selectedDifficulty}
+                exclusive
+                onChange={(_, value) => value && setSelectedDifficulty(value)}
+                fullWidth
+                sx={{ mb: 2 }}
               >
-                {difficultySettings[diff].name}
-              </ToggleButton>
-            ))}
-          </ToggleButtonGroup>
+                {(Object.keys(difficultySettings) as Difficulty[]).map((diff) => (
+                  <ToggleButton
+                    key={diff}
+                    value={diff}
+                    sx={{
+                      color: difficultySettings[diff].color,
+                      "&.Mui-selected": {
+                        backgroundColor: difficultySettings[diff].color,
+                        color: "#fff",
+                        "&:hover": {
+                          backgroundColor: difficultySettings[diff].color,
+                        },
+                      },
+                    }}
+                  >
+                    {difficultySettings[diff].name}
+                  </ToggleButton>
+                ))}
+              </ToggleButtonGroup>
 
-          <Box sx={{ mb: 2, p: 2, bgcolor: "grey.100", borderRadius: 1 }}>
-            <Typography variant="body2">
-              <b>{difficultySettings[selectedDifficulty].name}</b>
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Boss 血量: {formatBossHealth(difficultySettings[selectedDifficulty].bossHealth)}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              錯誤字母傷害:{" "}
-              {difficultySettings[selectedDifficulty].wrongLetterDamage === 0
-                ? "無"
-                : `-${difficultySettings[selectedDifficulty].wrongLetterDamage} HP`}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              攻擊速度:{" "}
-              {selectedDifficulty === "easy"
-                ? "慢"
-                : selectedDifficulty === "normal"
-                  ? "普通"
-                  : selectedDifficulty === "hard"
-                    ? "快"
-                    : "極快"}
-            </Typography>
-          </Box>
+              <Box sx={{ mb: 2, p: 2, bgcolor: "grey.100", borderRadius: 1 }}>
+                <Typography variant="body2">
+                  <b>{difficultySettings[selectedDifficulty].name}</b>
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Boss 血量: {formatBossHealth(difficultySettings[selectedDifficulty].bossHealth)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  錯誤字母傷害:{" "}
+                  {difficultySettings[selectedDifficulty].wrongLetterDamage === 0
+                    ? "無"
+                    : `-${difficultySettings[selectedDifficulty].wrongLetterDamage} HP`}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  攻擊速度:{" "}
+                  {selectedDifficulty === "easy"
+                    ? "慢"
+                    : selectedDifficulty === "normal"
+                      ? "普通"
+                      : selectedDifficulty === "hard"
+                        ? "快"
+                        : "極快"}
+                </Typography>
+              </Box>
+            </>
+          )}
 
           <Button
             variant="contained"
@@ -1190,9 +1636,9 @@ export default function StudentGamePage() {
             disabled={!selectedVocabId}
             sx={{
               py: 2,
-              backgroundColor: difficultySettings[selectedDifficulty].color,
+              backgroundColor: selectedGame === "dino-game" ? "#4caf50" : difficultySettings[selectedDifficulty].color,
               "&:hover": {
-                backgroundColor: difficultySettings[selectedDifficulty].color,
+                backgroundColor: selectedGame === "dino-game" ? "#4caf50" : difficultySettings[selectedDifficulty].color,
                 filter: "brightness(0.9)",
               },
             }}
