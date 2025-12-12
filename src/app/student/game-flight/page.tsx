@@ -188,11 +188,12 @@ export default function StudentGamePage() {
       const response = await fetch(`/api/student/vocabularies/${vocabId}/words?limit=1000`);
       if (response.ok) {
         const data = await response.json();
-        const wordsWithSpelling = (data.words || []).filter(
-          (w: Word) => w.spelling && w.spelling.length > 0
+        // 接受有 spelling 或有 word 的單字（用 word 當作備用拼音）
+        const validWords = (data.words || []).filter(
+          (w: Word) => (w.spelling && w.spelling.length > 0) || (w.word && w.word.length > 0)
         );
-        wordsRef.current = wordsWithSpelling;
-        return wordsWithSpelling;
+        wordsRef.current = validWords;
+        return validWords;
       }
     } catch (error) {
       console.error("載入單字失敗:", error);
@@ -215,7 +216,7 @@ export default function StudentGamePage() {
 
     const loadedWords = await loadWords(selectedVocabId);
     if (loadedWords.length < 5) {
-      alert("單字本需要至少 5 個有拼音的單字才能玩遊戲");
+      alert("單字本需要至少 5 個單字才能玩遊戲");
       return;
     }
 

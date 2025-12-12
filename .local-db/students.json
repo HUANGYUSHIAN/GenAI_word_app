@@ -58,16 +58,13 @@
   },
   {
     "id": "1765507626327-9ti0arv1pbk",
-    "data": {
-      "userId": "HqykNkVQWZF064jWLxzCJ8s0FiRy4G",
-      "lvocabuIDs": [],
-      "lcouponIDs": [],
-      "lfriendIDs": []
-    },
-    "lvocabuIDs": [],
+    "lvocabuIDs": [
+      "B0I7RCWmA0LolNOUiy4lwKC9yitIuV"
+    ],
     "lcouponIDs": [],
     "lfriendIDs": [],
     "createdAt": "2025-12-12T02:47:06.327Z",
-    "updatedAt": "2025-12-12T02:47:06.327Z"
+    "updatedAt": "2025-12-12T07:10:46.090Z",
+    "userId": "HqykNkVQWZF064jWLxzCJ8s0FiRy4G"
   }
 ]
