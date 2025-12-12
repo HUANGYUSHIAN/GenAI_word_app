@@ -18,10 +18,6 @@ import {
   Chip,
   ToggleButton,
   ToggleButtonGroup,
-  Card,
-  CardContent,
-  CardMedia,
-  Grid,
 } from "@mui/material";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -74,7 +70,6 @@ interface ActivePowerUp {
 }
 
 type Difficulty = "easy" | "normal" | "hard" | "hell";
-type GameType = "none" | "plane-shooter";
 
 interface DifficultySettings {
   name: string;
@@ -86,7 +81,6 @@ interface DifficultySettings {
   letterSpeed: number;
   wrongLetterDamage: number;
   playerDamage: number;
-  playerShootCooldown: number;
   trackingDuration: number;
 }
 
@@ -94,53 +88,49 @@ const DIFFICULTY_SETTINGS: Record<Difficulty, DifficultySettings> = {
   easy: {
     name: "😊 簡單",
     color: "#4caf50",
-    bossHealth: 10000,
+    bossHealth: 500,
     bossAttackSpeed: 2.5,
     bossSpeed: 1.5,
-    letterFrequency: 0.025,
+    letterFrequency: 0.03,
     letterSpeed: 0.8,
     wrongLetterDamage: 0,
-    playerDamage: 15,
-    playerShootCooldown: 200,
+    playerDamage: 25,
     trackingDuration: 2000,
   },
   normal: {
     name: "😐 普通",
     color: "#2196f3",
-    bossHealth: 30000,
+    bossHealth: 700,
     bossAttackSpeed: 1.8,
     bossSpeed: 2,
-    letterFrequency: 0.022,
+    letterFrequency: 0.025,
     letterSpeed: 1,
     wrongLetterDamage: 0,
-    playerDamage: 12,
-    playerShootCooldown: 180,
+    playerDamage: 18,
     trackingDuration: 2500,
   },
   hard: {
     name: "😈 困難",
     color: "#ff9800",
-    bossHealth: 100000,
+    bossHealth: 1000,
     bossAttackSpeed: 1.2,
     bossSpeed: 2.5,
-    letterFrequency: 0.018,
+    letterFrequency: 0.02,
     letterSpeed: 1.2,
     wrongLetterDamage: 5,
-    playerDamage: 10,
-    playerShootCooldown: 160,
+    playerDamage: 15,
     trackingDuration: 3000,
   },
   hell: {
     name: "💀 地獄",
     color: "#f44336",
-    bossHealth: 1000000000,
+    bossHealth: 1500,
     bossAttackSpeed: 0.8,
     bossSpeed: 3,
     letterFrequency: 0.015,
     letterSpeed: 1.5,
     wrongLetterDamage: 10,
-    playerDamage: 8,
-    playerShootCooldown: 150,
+    playerDamage: 12,
     trackingDuration: 4000,
   },
 };
@@ -187,30 +177,6 @@ const LETTER_FALL_SPEED = 1.5;
 const MAX_PLAYER_HEALTH = 100;
 const WORDS_FOR_DOUBLE_SCORE = 5;
 
-// ==================== 遊戲列表 ====================
-const GAME_LIST = [
-  {
-    id: "plane-shooter",
-    name: "✈️ 飛機大戰",
-    description: "操控飛機擊敗 Boss，收集字母拼出單字獲得增強效果！",
-    color: "#1976d2",
-  },
-  {
-    id: "coming-soon-1",
-    name: "🎯 單字射擊（即將推出）",
-    description: "射擊正確的單字翻譯",
-    color: "#9e9e9e",
-    disabled: true,
-  },
-  {
-    id: "coming-soon-2", 
-    name: "🧩 單字拼圖（即將推出）",
-    description: "拖拽字母拼出正確單字",
-    color: "#9e9e9e",
-    disabled: true,
-  },
-];
-
 // ==================== 主組件 ====================
 export default function StudentGamePage() {
   const { data: session } = useSession();
@@ -227,7 +193,6 @@ export default function StudentGamePage() {
   const [vocabularies, setVocabularies] = useState<Vocabulary[]>([]);
   const [selectedVocabId, setSelectedVocabId] = useState("");
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>("normal");
-  const [selectedGame, setSelectedGame] = useState<GameType>("none");
   const [gameStarted, setGameStarted] = useState(false);
   const [showResult, setShowResult] = useState(false);
 
@@ -238,8 +203,8 @@ export default function StudentGamePage() {
     maxPlayerHealth: MAX_PLAYER_HEALTH,
     bossX: CANVAS_WIDTH / 2 - BOSS_WIDTH / 2,
     bossY: 50,
-    bossHealth: 30000,
-    maxBossHealth: 30000,
+    bossHealth: 700,
+    maxBossHealth: 700,
     bullets: [],
     fallingLetters: [],
     activePowerUps: [],
@@ -307,14 +272,7 @@ export default function StudentGamePage() {
     return { word, spelling: spelling.toLowerCase().replace(/[^a-z]/g, "") };
   };
 
-  const formatBossHealth = (health: number): string => {
-    if (health >= 1000000000) return (health / 1000000000).toFixed(1) + "B";
-    if (health >= 1000000) return (health / 1000000).toFixed(1) + "M";
-    if (health >= 1000) return (health / 1000).toFixed(1) + "K";
-    return Math.floor(health).toString();
-  };
-
-  const startPlaneShooter = async () => {
+  const startGame = async () => {
     if (!selectedVocabId) {
       alert("請選擇單字本");
       return;
@@ -460,14 +418,13 @@ export default function StudentGamePage() {
     ctx.fillStyle = "#333333";
     ctx.fillRect(50, 15, CANVAS_WIDTH - 100, 20);
     ctx.fillStyle = "#ff4444";
-    const healthRatio = Math.max(0, state.bossHealth) / state.maxBossHealth;
-    ctx.fillRect(50, 15, (CANVAS_WIDTH - 100) * healthRatio, 20);
+    ctx.fillRect(50, 15, ((CANVAS_WIDTH - 100) * Math.max(0, state.bossHealth)) / state.maxBossHealth, 20);
     ctx.strokeStyle = "#ffffff";
     ctx.strokeRect(50, 15, CANVAS_WIDTH - 100, 20);
     ctx.fillStyle = "#ffffff";
     ctx.font = "14px Arial";
     ctx.textAlign = "center";
-    ctx.fillText(`BOSS: ${formatBossHealth(Math.max(0, state.bossHealth))} / ${formatBossHealth(state.maxBossHealth)}`, CANVAS_WIDTH / 2, 30);
+    ctx.fillText(`BOSS HP: ${Math.max(0, Math.floor(state.bossHealth))} / ${state.maxBossHealth}`, CANVAS_WIDTH / 2, 30);
 
     // 難度顯示
     ctx.fillStyle = settings.color;
@@ -550,7 +507,7 @@ export default function StudentGamePage() {
   }, []);
 
   useEffect(() => {
-    if (!gameStarted || selectedGame !== "plane-shooter") return;
+    if (!gameStarted) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       keysRef.current.add(e.key.toLowerCase());
@@ -592,12 +549,9 @@ export default function StudentGamePage() {
         state.playerY = Math.min(CANVAS_HEIGHT - PLAYER_HEIGHT, state.playerY + PLAYER_SPEED);
       }
 
-      // 玩家射擊（使用難度設定的冷卻時間）
+      // 玩家射擊
       if (keysRef.current.has(" ") || keysRef.current.has("j")) {
-        const baseShootCooldown = settings.playerShootCooldown;
-        const shootCooldown = state.activePowerUps.some((p) => p.type === "rapid" && p.endTime > now) 
-          ? baseShootCooldown * 0.5 
-          : baseShootCooldown;
+        const shootCooldown = state.activePowerUps.some((p) => p.type === "rapid" && p.endTime > now) ? 60 : 100;
         
         if (now - lastShotTimeRef.current > shootCooldown) {
           lastShotTimeRef.current = now;
@@ -827,17 +781,11 @@ export default function StudentGamePage() {
         cancelAnimationFrame(gameLoopRef.current);
       }
     };
-  }, [gameStarted, selectedGame, renderGame]);
+  }, [gameStarted, renderGame]);
 
   const handleRestart = () => {
     setShowResult(false);
     setGameStarted(false);
-  };
-
-  const handleBackToGameSelect = () => {
-    setShowResult(false);
-    setGameStarted(false);
-    setSelectedGame("none");
   };
 
   if (loading) {
@@ -848,79 +796,13 @@ export default function StudentGamePage() {
     );
   }
 
-  // 遊戲選擇畫面
-  if (selectedGame === "none") {
-    return (
-      <Box>
-        <Typography variant="h4" sx={{ mb: 3 }}>
-          🎮 單字遊戲
-        </Typography>
-        
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-          選擇一個遊戲開始學習單字！
-        </Typography>
+  return (
+    <Box>
+      <Typography variant="h4" sx={{ mb: 3 }}>
+        ✈️ 單字飛機大戰
+      </Typography>
 
-        <Grid container spacing={3}>
-          {GAME_LIST.map((game) => (
-            <Grid item xs={12} sm={6} md={4} key={game.id}>
-              <Card 
-                sx={{ 
-                  height: "100%",
-                  cursor: game.disabled ? "not-allowed" : "pointer",
-                  opacity: game.disabled ? 0.5 : 1,
-                  transition: "transform 0.2s, box-shadow 0.2s",
-                  "&:hover": game.disabled ? {} : {
-                    transform: "translateY(-4px)",
-                    boxShadow: 4,
-                  }
-                }}
-                onClick={() => !game.disabled && setSelectedGame(game.id as GameType)}
-              >
-                <Box 
-                  sx={{ 
-                    height: 120, 
-                    backgroundColor: game.color,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Typography variant="h2">
-                    {game.name.split(" ")[0]}
-                  </Typography>
-                </Box>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    {game.name}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {game.description}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-      </Box>
-    );
-  }
-
-  // 飛機大戰設定畫面
-  if (selectedGame === "plane-shooter" && !gameStarted) {
-    return (
-      <Box>
-        <Button 
-          variant="text" 
-          onClick={() => setSelectedGame("none")}
-          sx={{ mb: 2 }}
-        >
-          ← 返回遊戲列表
-        </Button>
-        
-        <Typography variant="h4" sx={{ mb: 3 }}>
-          ✈️ 飛機大戰
-        </Typography>
-
+      {!gameStarted ? (
         <Paper sx={{ p: 3, maxWidth: 600, mx: "auto" }}>
           <Typography variant="h6" gutterBottom>
             遊戲說明
@@ -996,7 +878,7 @@ export default function StudentGamePage() {
               <b>{DIFFICULTY_SETTINGS[selectedDifficulty].name}</b>
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Boss 血量: {formatBossHealth(DIFFICULTY_SETTINGS[selectedDifficulty].bossHealth)}
+              Boss 血量: {DIFFICULTY_SETTINGS[selectedDifficulty].bossHealth}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               錯誤字母傷害: {DIFFICULTY_SETTINGS[selectedDifficulty].wrongLetterDamage === 0 ? "無" : `-${DIFFICULTY_SETTINGS[selectedDifficulty].wrongLetterDamage} HP`}
@@ -1010,7 +892,7 @@ export default function StudentGamePage() {
             variant="contained"
             size="large"
             fullWidth
-            onClick={startPlaneShooter}
+            onClick={startGame}
             disabled={!selectedVocabId}
             sx={{ 
               py: 2,
@@ -1024,21 +906,16 @@ export default function StudentGamePage() {
             開始遊戲
           </Button>
         </Paper>
-      </Box>
-    );
-  }
-
-  // 遊戲進行中
-  return (
-    <Box>
-      <Box sx={{ display: "flex", justifyContent: "center" }}>
-        <canvas
-          ref={canvasRef}
-          width={CANVAS_WIDTH}
-          height={CANVAS_HEIGHT}
-          style={{ border: "2px solid #333", borderRadius: 8, backgroundColor: "#1a1a2e" }}
-        />
-      </Box>
+      ) : (
+        <Box sx={{ display: "flex", justifyContent: "center" }}>
+          <canvas
+            ref={canvasRef}
+            width={CANVAS_WIDTH}
+            height={CANVAS_HEIGHT}
+            style={{ border: "2px solid #333", borderRadius: 8, backgroundColor: "#1a1a2e" }}
+          />
+        </Box>
+      )}
 
       <Dialog open={showResult} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ textAlign: "center", fontSize: 28 }}>
@@ -1073,8 +950,8 @@ export default function StudentGamePage() {
           </Box>
         </DialogContent>
         <DialogActions sx={{ justifyContent: "center", pb: 3 }}>
-          <Button variant="outlined" onClick={handleBackToGameSelect}>
-            返回遊戲列表
+          <Button variant="outlined" onClick={() => router.push("/student")}>
+            返回首頁
           </Button>
           <Button variant="contained" onClick={handleRestart}>
             再玩一次
