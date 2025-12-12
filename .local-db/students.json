@@ -55,5 +55,19 @@
     "lfriendIDs": [],
     "createdAt": "2025-11-21T09:53:42.413Z",
     "updatedAt": "2025-11-21T09:56:02.547Z"
+  },
+  {
+    "id": "1765507626327-9ti0arv1pbk",
+    "data": {
+      "userId": "HqykNkVQWZF064jWLxzCJ8s0FiRy4G",
+      "lvocabuIDs": [],
+      "lcouponIDs": [],
+      "lfriendIDs": []
+    },
+    "lvocabuIDs": [],
+    "lcouponIDs": [],
+    "lfriendIDs": [],
+    "createdAt": "2025-12-12T02:47:06.327Z",
+    "updatedAt": "2025-12-12T02:47:06.327Z"
   }
 ]
