@@ -22,7 +22,6 @@ import MenuBookIcon from "@mui/icons-material/MenuBook";
 import StoreIcon from "@mui/icons-material/Store";
 import SettingsIcon from "@mui/icons-material/Settings";
 import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
-import FlightIcon from "@mui/icons-material/Flight";
 import HistoryIcon from "@mui/icons-material/History";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { signOut } from "next-auth/react";
@@ -34,7 +33,6 @@ const menuItems = [
   { text: "點數兌換", icon: <StoreIcon />, path: "/student/store" },
   { text: "設定", icon: <SettingsIcon />, path: "/student/setting" },
   { text: "單字遊戲", icon: <SportsEsportsIcon />, path: "/student/game" },
-  { text: "飛機大戰", icon: <FlightIcon />, path: "/student/game-flight" },
   { text: "單字複習", icon: <HistoryIcon />, path: "/student/review" },
   { text: "單字測驗", icon: <SportsEsportsIcon />, path: "/student/test" },
   { text: "意見回饋", icon: <SettingsIcon />, path: "/student/feedback" },
