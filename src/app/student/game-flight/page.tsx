@@ -54,6 +54,7 @@ interface Bullet {
   type: "normal" | "spread" | "large" | "tracking";
   targetX?: number;
   targetY?: number;
+  createdAt?: number;  // 追蹤彈建立時間
 }
 
 interface FallingLetter {
@@ -310,11 +311,11 @@ export default function StudentGamePage() {
         state.playerY = Math.min(CANVAS_HEIGHT - PLAYER_HEIGHT, state.playerY + PLAYER_SPEED);
       }
 
-      // 玩家射擊
-      if (keysRef.current.has(" ")) {
+      // 玩家射擊（空白鍵或 J 鍵）
+      if (keysRef.current.has(" ") || keysRef.current.has("j")) {
         const shootCooldown = state.activePowerUps.some(
           (p) => p.type === "rapid" && p.endTime > now
-        ) ? 100 : 200;
+        ) ? 80 : 150;
         
         if (now - lastShotTimeRef.current > shootCooldown) {
           lastShotTimeRef.current = now;
@@ -366,17 +367,19 @@ export default function StudentGamePage() {
         } else {
           state.bullets.push({
             id: bulletIdRef.current++, x: state.bossX + BOSS_WIDTH / 2 - 8, y: state.bossY + BOSS_HEIGHT,
-            damage: 15, isPlayer: false, width: 16, height: 16, speed: BOSS_BULLET_SPEED * 0.6, color: "#ff00ff", type: "tracking",
-            targetX: state.playerX + PLAYER_WIDTH / 2, targetY: state.playerY + PLAYER_HEIGHT / 2
+            damage: 15, isPlayer: false, width: 16, height: 16, speed: BOSS_BULLET_SPEED * 0.5, color: "#ff00ff", type: "tracking",
+            targetX: state.playerX + PLAYER_WIDTH / 2, targetY: state.playerY + PLAYER_HEIGHT / 2,
+            createdAt: now
           });
           state.bossAttackCooldown = 140 - state.bossPhase * 12;  // 原本 80，改成 140
         }
       }
 
-      // 生成掉落字母（減少頻率）
-      if (Math.random() < 0.015 && state.correctLetters.length > 0) {
+      // 生成掉落字母（減少頻率，確保間距）
+      const hasRecentLetter = state.fallingLetters.some(l => l.y < 80);  // 確保上方沒有太近的字母
+      if (Math.random() < 0.012 && state.correctLetters.length > 0 && !hasRecentLetter) {
         const nextIndex = state.collectedLetters.length;
-        const isCorrect = Math.random() < 0.4;  // 提高正確字母機率
+        const isCorrect = Math.random() < 0.45;  // 提高正確字母機率
         let letter: string;
         
         if (isCorrect && nextIndex < state.correctLetters.length) {
@@ -390,7 +393,7 @@ export default function StudentGamePage() {
           letter,
           x: Math.random() * (CANVAS_WIDTH - 30),
           y: -30,
-          speed: LETTER_FALL_SPEED + Math.random() * 0.5,  // 減慢掉落速度
+          speed: LETTER_FALL_SPEED * 0.8,  // 更慢的掉落速度
         });
       }
 
@@ -400,20 +403,27 @@ export default function StudentGamePage() {
           return { ...bullet, y: bullet.y - bullet.speed, x: bullet.x + (bullet.targetX || 0) };
         } else {
           if (bullet.type === "tracking") {
-            const dx = (bullet.targetX || 0) - bullet.x;
-            const dy = (bullet.targetY || 0) - bullet.y;
+            // 追蹤彈：追蹤玩家位置
+            const dx = (state.playerX + PLAYER_WIDTH / 2) - bullet.x;
+            const dy = (state.playerY + PLAYER_HEIGHT / 2) - bullet.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist > 5) {
-              // 還在追蹤
-              return { ...bullet, x: bullet.x + (dx / dist) * bullet.speed, y: bullet.y + (dy / dist) * bullet.speed };
-            } else {
-              // 到達目標，繼續往下飛
-              return { ...bullet, y: bullet.y + bullet.speed };
+            if (dist > 0) {
+              return { 
+                ...bullet, 
+                x: bullet.x + (dx / dist) * bullet.speed,
+                y: bullet.y + (dy / dist) * bullet.speed
+              };
             }
           }
           return { ...bullet, y: bullet.y + bullet.speed, x: bullet.x + (bullet.targetX || 0) };
         }
-      }).filter((b) => b.y > -50 && b.y < CANVAS_HEIGHT + 50 && b.x > -50 && b.x < CANVAS_WIDTH + 50);
+      }).filter((b) => {
+        // 追蹤彈 3 秒後消失
+        if (b.type === "tracking" && b.createdAt && now - b.createdAt > 3000) {
+          return false;
+        }
+        return b.y > -50 && b.y < CANVAS_HEIGHT + 50 && b.x > -50 && b.x < CANVAS_WIDTH + 50;
+      });
 
       // 更新字母
       state.fallingLetters = state.fallingLetters
@@ -650,13 +660,14 @@ export default function StudentGamePage() {
     ctx.textAlign = "right";
     ctx.fillText(`分數: ${state.score}`, CANVAS_WIDTH - 10, CANVAS_HEIGHT - 15);
 
-    // 當前單字（只顯示解釋）
+    // 當前單字（只顯示解釋）- 移到畫面上方
     if (state.currentWord) {
       ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 20px Arial";
+      ctx.font = "bold 22px Arial";
       ctx.textAlign = "center";
-      ctx.fillText(`${state.currentWord.explanation}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT - 60);
+      ctx.fillText(`提示: ${state.currentWord.explanation}`, CANVAS_WIDTH / 2, 55);
 
+      // 拼音進度 - 在提示下方
       const spelling = state.targetSpelling.toUpperCase();
       let displayText = "";
       for (let i = 0; i < spelling.length; i++) {
@@ -664,8 +675,8 @@ export default function StudentGamePage() {
         displayText += " ";
       }
       ctx.fillStyle = "#00ffff";
-      ctx.font = "bold 24px monospace";
-      ctx.fillText(displayText, CANVAS_WIDTH / 2, CANVAS_HEIGHT - 85);
+      ctx.font = "bold 28px monospace";
+      ctx.fillText(displayText, CANVAS_WIDTH / 2, 85);
     }
 
     // 單字進度
@@ -674,15 +685,22 @@ export default function StudentGamePage() {
     ctx.textAlign = "left";
     ctx.fillText(`完成單字: ${state.wordsCompleted} / ${state.targetWordsToWin}`, 10, CANVAS_HEIGHT - 60);
 
-    // 增益
+    // 增益效果 - 移到右上角更明顯
     const now = Date.now();
-    const icons: Record<string, string> = { spread: "🔫", damage: "💥", shield: "🛡️", rapid: "⚡" };
-    state.activePowerUps.forEach((p, i) => {
+    const icons: Record<string, string> = { spread: "散", damage: "強", shield: "盾", rapid: "速" };
+    const colors: Record<string, string> = { spread: "#ff6600", damage: "#ff0000", shield: "#00ffff", rapid: "#ffff00" };
+    let powerUpX = CANVAS_WIDTH - 80;
+    state.activePowerUps.forEach((p) => {
       const remaining = Math.ceil((p.endTime - now) / 1000);
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "16px Arial";
-      ctx.textAlign = "left";
-      ctx.fillText(`${icons[p.type]} ${remaining}s`, 180 + i * 60, CANVAS_HEIGHT - 15);
+      if (remaining > 0) {
+        ctx.fillStyle = colors[p.type] || "#ffffff";
+        ctx.font = "bold 18px Arial";
+        ctx.textAlign = "center";
+        ctx.fillRect(powerUpX - 25, 45, 50, 25);
+        ctx.fillStyle = "#000000";
+        ctx.fillText(`${icons[p.type]}${remaining}`, powerUpX, 63);
+        powerUpX -= 60;
+      }
     });
 
     // 暫停
