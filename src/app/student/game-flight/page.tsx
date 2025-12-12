@@ -354,7 +354,7 @@ export default function StudentGamePage() {
             id: bulletIdRef.current++, x: state.bossX + BOSS_WIDTH / 2 - 15, y: state.bossY + BOSS_HEIGHT,
             damage: 20, isPlayer: false, width: 30, height: 30, speed: BOSS_BULLET_SPEED, color: "#ff4444", type: "large"
           });
-          state.bossAttackCooldown = 60 - state.bossPhase * 5;
+          state.bossAttackCooldown = 120 - state.bossPhase * 10;  // 原本 60，改成 120
         } else if (attackType < 0.7) {
           for (let i = -2; i <= 2; i++) {
             state.bullets.push({
@@ -362,21 +362,21 @@ export default function StudentGamePage() {
               damage: 10, isPlayer: false, width: 12, height: 12, speed: BOSS_BULLET_SPEED * 0.8, color: "#ff8800", type: "spread", targetX: i * 2
             });
           }
-          state.bossAttackCooldown = 90 - state.bossPhase * 8;
+          state.bossAttackCooldown = 150 - state.bossPhase * 15;  // 原本 90，改成 150
         } else {
           state.bullets.push({
             id: bulletIdRef.current++, x: state.bossX + BOSS_WIDTH / 2 - 8, y: state.bossY + BOSS_HEIGHT,
             damage: 15, isPlayer: false, width: 16, height: 16, speed: BOSS_BULLET_SPEED * 0.6, color: "#ff00ff", type: "tracking",
             targetX: state.playerX + PLAYER_WIDTH / 2, targetY: state.playerY + PLAYER_HEIGHT / 2
           });
-          state.bossAttackCooldown = 80 - state.bossPhase * 6;
+          state.bossAttackCooldown = 140 - state.bossPhase * 12;  // 原本 80，改成 140
         }
       }
 
-      // 生成掉落字母
-      if (Math.random() < 0.03 && state.correctLetters.length > 0) {
+      // 生成掉落字母（減少頻率）
+      if (Math.random() < 0.015 && state.correctLetters.length > 0) {
         const nextIndex = state.collectedLetters.length;
-        const isCorrect = Math.random() < 0.35;
+        const isCorrect = Math.random() < 0.4;  // 提高正確字母機率
         let letter: string;
         
         if (isCorrect && nextIndex < state.correctLetters.length) {
@@ -390,7 +390,7 @@ export default function StudentGamePage() {
           letter,
           x: Math.random() * (CANVAS_WIDTH - 30),
           y: -30,
-          speed: LETTER_FALL_SPEED + Math.random() * 1,
+          speed: LETTER_FALL_SPEED + Math.random() * 0.5,  // 減慢掉落速度
         });
       }
 
@@ -403,8 +403,12 @@ export default function StudentGamePage() {
             const dx = (bullet.targetX || 0) - bullet.x;
             const dy = (bullet.targetY || 0) - bullet.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist > 0) {
+            if (dist > 5) {
+              // 還在追蹤
               return { ...bullet, x: bullet.x + (dx / dist) * bullet.speed, y: bullet.y + (dy / dist) * bullet.speed };
+            } else {
+              // 到達目標，繼續往下飛
+              return { ...bullet, y: bullet.y + bullet.speed };
             }
           }
           return { ...bullet, y: bullet.y + bullet.speed, x: bullet.x + (bullet.targetX || 0) };
@@ -481,6 +485,7 @@ export default function StudentGamePage() {
               }
             }
           } else {
+            // 收集錯誤字母扣血
             state.playerHealth -= 5;
           }
           return false;
@@ -645,12 +650,12 @@ export default function StudentGamePage() {
     ctx.textAlign = "right";
     ctx.fillText(`分數: ${state.score}`, CANVAS_WIDTH - 10, CANVAS_HEIGHT - 15);
 
-    // 當前單字
+    // 當前單字（只顯示解釋）
     if (state.currentWord) {
       ctx.fillStyle = "#ffffff";
       ctx.font = "bold 20px Arial";
       ctx.textAlign = "center";
-      ctx.fillText(`${state.currentWord.word} - ${state.currentWord.explanation}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT - 60);
+      ctx.fillText(`${state.currentWord.explanation}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT - 60);
 
       const spelling = state.targetSpelling.toUpperCase();
       let displayText = "";
