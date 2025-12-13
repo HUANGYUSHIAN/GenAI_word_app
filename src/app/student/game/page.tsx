@@ -105,6 +105,9 @@ interface DifficultySettings {
   playerDamage: number;
   playerShootCooldown: number;
   trackingDuration: number;
+  maxPlayerHealth: number;
+  pointsPerWord: number; // 每完成一個單字獲得的積分
+  maxPoints: number; // 一局最多可獲得的積分
 }
 
 // 飛機大戰難度設定
@@ -115,12 +118,15 @@ const PLANE_SHOOTER_DIFFICULTY: Record<Difficulty, DifficultySettings> = {
     bossHealth: 10000,
     bossAttackSpeed: 2.5,
     bossSpeed: 1.5,
-    letterFrequency: 0.025,
+    letterFrequency: 0.08,
     letterSpeed: 0.8,
     wrongLetterDamage: 0,
     playerDamage: 15,
     playerShootCooldown: 300,
     trackingDuration: 2000,
+    maxPlayerHealth: 300,
+    pointsPerWord: 1,
+    maxPoints: 10,
   },
   normal: {
     name: "😐 普通",
@@ -128,12 +134,15 @@ const PLANE_SHOOTER_DIFFICULTY: Record<Difficulty, DifficultySettings> = {
     bossHealth: 30000,
     bossAttackSpeed: 1.8,
     bossSpeed: 2,
-    letterFrequency: 0.022,
+    letterFrequency: 0.08,
     letterSpeed: 1,
     wrongLetterDamage: 0,
     playerDamage: 12,
     playerShootCooldown: 280,
     trackingDuration: 2500,
+    maxPlayerHealth: 250,
+    pointsPerWord: 1.5,
+    maxPoints: 15,
   },
   hard: {
     name: "😈 困難",
@@ -141,12 +150,15 @@ const PLANE_SHOOTER_DIFFICULTY: Record<Difficulty, DifficultySettings> = {
     bossHealth: 100000,
     bossAttackSpeed: 1.2,
     bossSpeed: 2.5,
-    letterFrequency: 0.018,
+    letterFrequency: 0.08,
     letterSpeed: 1.2,
     wrongLetterDamage: 5,
     playerDamage: 10,
     playerShootCooldown: 260,
     trackingDuration: 3000,
+    maxPlayerHealth: 100,
+    pointsPerWord: 2,
+    maxPoints: 20,
   },
   hell: {
     name: "💀 地獄",
@@ -154,12 +166,15 @@ const PLANE_SHOOTER_DIFFICULTY: Record<Difficulty, DifficultySettings> = {
     bossHealth: 1000000000,
     bossAttackSpeed: 0.8,
     bossSpeed: 3,
-    letterFrequency: 0.015,
+    letterFrequency: 0.08,
     letterSpeed: 1.5,
     wrongLetterDamage: 10,
     playerDamage: 8,
     playerShootCooldown: 250,
     trackingDuration: 4000,
+    maxPlayerHealth: 100,
+    pointsPerWord: 5,
+    maxPoints: 50,
   },
 };
 
@@ -232,6 +247,7 @@ interface GameState {
   fallingLetters: FallingLetter[];
   activePowerUps: ActivePowerUp[];
   score: number;
+  points: number; // 積分（一局最多20）
   correctLetters: string[];
   currentWord: Word | null;
   targetSpelling: string;
@@ -249,6 +265,7 @@ interface GameState {
   dinoY?: number;
   dinoVelocity?: number;
   isJumping?: boolean;
+  jumpCount?: number; // 跳躍次數（用於二段跳）
   groundY?: number;
   cacti?: Cactus[];
   flyingLetters?: FlyingLetter[];
@@ -257,6 +274,8 @@ interface GameState {
   dashEndTime?: number;
   lastCactusSpawn?: number;
   lastLetterSpawn?: number;
+  effectMessage?: string; // 效果提示訊息
+  effectMessageEndTime?: number; // 效果提示結束時間
 }
 
 // ==================== 遊戲常數 ====================
@@ -298,8 +317,8 @@ const GAME_LIST = [
   },
   {
     id: "dino-game",
-    name: "🦕 離線小恐龍",
-    description: "跳起來收集字母拼出單字，撞到仙人掌會扣血，完成單字可復活無敵衝刺！",
+    name: "🦕 小恐龍逃脫遊戲",
+    description: "跳起來收集字母拼出單字，跳過仙人掌避免碰撞，完成單字可復活無敵衝刺！",
     color: "#4caf50",
   },
 ];
@@ -447,6 +466,8 @@ export default function StudentGamePage() {
         fallingLetters: [],
         activePowerUps: [],
         score: 0,
+        score: 0,
+        points: 0,
         correctLetters: firstWord.spelling.split(""),
         currentWord: firstWord.word,
         targetSpelling: firstWord.spelling,
@@ -463,10 +484,11 @@ export default function StudentGamePage() {
         dinoY: DINO_GROUND_Y,
         dinoVelocity: 0,
         isJumping: false,
+        jumpCount: 0,
         groundY: DINO_GROUND_Y,
         cacti: [],
         flyingLetters: [],
-        gameSpeed: 5,
+        gameSpeed: 3,
         isDashing: false,
         dashEndTime: 0,
         lastCactusSpawn: Date.now(),
@@ -484,8 +506,8 @@ export default function StudentGamePage() {
     const initialState: GameState = {
       playerX: CANVAS_WIDTH / 2 - PLAYER_WIDTH / 2,
       playerY: CANVAS_HEIGHT - PLAYER_HEIGHT - 20,
-      playerHealth: MAX_PLAYER_HEALTH,
-      maxPlayerHealth: MAX_PLAYER_HEALTH,
+      playerHealth: settings.maxPlayerHealth,
+      maxPlayerHealth: settings.maxPlayerHealth,
       bossX: CANVAS_WIDTH / 2 - BOSS_WIDTH / 2,
       bossY: 50,
       bossHealth: settings.bossHealth,
@@ -521,6 +543,9 @@ export default function StudentGamePage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // 清除畫布（避免殘影）
+    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
     // 背景（天空和地面）
     ctx.fillStyle = "#87CEEB";
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -537,30 +562,29 @@ export default function StudentGamePage() {
     ctx.lineTo(CANVAS_WIDTH, DINO_GROUND_Y + DINO_HEIGHT);
     ctx.stroke();
 
-    // 繪製仙人掌
+    // 繪製仙人掌（底部在地面上，高度要能跳過）
     if (state.cacti) {
+      const groundY = state.groundY || DINO_GROUND_Y;
       state.cacti.forEach((cactus) => {
         ctx.fillStyle = "#228B22";
-        ctx.fillRect(cactus.x, cactus.y, cactus.width, cactus.height);
+        // 仙人掌底部在地面上（和恐龍站的地方一樣）
+        const cactusY = groundY - cactus.height;
+        ctx.fillRect(cactus.x, cactusY, cactus.width, cactus.height);
         // 仙人掌刺
         ctx.fillStyle = "#006400";
         for (let i = 0; i < cactus.height; i += 10) {
-          ctx.fillRect(cactus.x - 3, cactus.y + i, 3, 5);
-          ctx.fillRect(cactus.x + cactus.width, cactus.y + i, 3, 5);
+          ctx.fillRect(cactus.x - 3, cactusY + i, 3, 5);
+          ctx.fillRect(cactus.x + cactus.width, cactusY + i, 3, 5);
         }
       });
     }
 
-    // 繪製飛行字母
+    // 繪製飛行字母（都白色，不顯示提示）
     if (state.flyingLetters) {
       state.flyingLetters.forEach((letter) => {
-        const nextIndex = state.collectedLetters.length;
-        const expected = state.correctLetters[nextIndex] || "";
-        const isCorrect = letter.letter === expected;
-
-        ctx.fillStyle = isCorrect ? "#00ff00" : "#ffff00";
+        ctx.fillStyle = "#ffffff";
         ctx.fillRect(letter.x, letter.y, letter.width, letter.height);
-        ctx.strokeStyle = isCorrect ? "#00aa00" : "#aaaa00";
+        ctx.strokeStyle = "#666666";
         ctx.lineWidth = 2;
         ctx.strokeRect(letter.x, letter.y, letter.width, letter.height);
         ctx.fillStyle = "#000000";
@@ -614,7 +638,7 @@ export default function StudentGamePage() {
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 16px Arial";
     ctx.textAlign = "left";
-    ctx.fillText(`分數: ${state.score}`, 20, 35);
+    ctx.fillText(`積分: ${state.points || 0}/20`, 20, 35);
     ctx.fillText(`HP: ${state.playerHealth}/${state.maxPlayerHealth}`, 20, 55);
     
     // 血條
@@ -641,6 +665,22 @@ export default function StudentGamePage() {
       ctx.fillStyle = "#00ffff";
       ctx.font = "bold 24px monospace";
       ctx.fillText(displayText, CANVAS_WIDTH / 2, 55);
+    }
+
+    // 效果提示訊息
+    const now = Date.now();
+    if (state.effectMessage && state.effectMessageEndTime && now < state.effectMessageEndTime) {
+      const remaining = state.effectMessageEndTime - now;
+      const alpha = Math.min(1, remaining / 500); // 最後0.5秒淡出
+      ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * alpha})`;
+      ctx.fillRect(CANVAS_WIDTH / 2 - 200, 100, 400, 60);
+      ctx.strokeStyle = `rgba(255, 255, 0, ${alpha})`;
+      ctx.lineWidth = 3;
+      ctx.strokeRect(CANVAS_WIDTH / 2 - 200, 100, 400, 60);
+      ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+      ctx.font = "bold 24px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(state.effectMessage, CANVAS_WIDTH / 2, 140);
     }
 
     // 暫停
@@ -737,17 +777,13 @@ export default function StudentGamePage() {
       }
     });
 
-    // 掉落字母
+    // 掉落字母（不顯示正確提示）
     state.fallingLetters.forEach((letter) => {
-      const nextIndex = state.collectedLetters.length;
-      const expected = state.correctLetters[nextIndex] || "";
-      const isCorrect = letter.letter === expected;
-
-      ctx.fillStyle = isCorrect ? "#00ff00" : "#ffffff";
+      ctx.fillStyle = "#ffffff";
       ctx.fillRect(letter.x, letter.y, 28, 28);
-      ctx.strokeStyle = isCorrect ? "#00ff00" : "#666666";
+      ctx.strokeStyle = "#666666";
       ctx.strokeRect(letter.x, letter.y, 28, 28);
-      ctx.fillStyle = isCorrect ? "#000000" : "#333333";
+      ctx.fillStyle = "#333333";
       ctx.font = "bold 16px Arial";
       ctx.textAlign = "center";
       ctx.fillText(letter.letter.toUpperCase(), letter.x + 14, letter.y + 20);
@@ -788,14 +824,15 @@ export default function StudentGamePage() {
     ctx.textAlign = "left";
     ctx.fillText(`HP: ${Math.max(0, state.playerHealth)}`, 15, CANVAS_HEIGHT - 15);
 
-    // 分數
-    const hasDoubleScore = state.wordsCompleted >= WORDS_FOR_DOUBLE_SCORE;
-    ctx.fillStyle = hasDoubleScore ? "#00ff00" : "#ffff00";
+    // 積分顯示
+    ctx.fillStyle = "#ffff00";
     ctx.font = "bold 18px Arial";
     ctx.textAlign = "right";
-    ctx.fillText(`分數: ${state.score}${hasDoubleScore ? " (x2)" : ""}`, CANVAS_WIDTH - 10, CANVAS_HEIGHT - 15);
+    const maxPoints = settings.maxPoints;
+    const pointsDisplay = (state.points || 0).toFixed(1);
+    ctx.fillText(`積分: ${pointsDisplay}/${maxPoints}`, CANVAS_WIDTH - 10, CANVAS_HEIGHT - 15);
 
-    // 當前單字提示
+    // 當前單字提示和進度
     if (state.currentWord) {
       ctx.fillStyle = "#ffffff";
       ctx.font = "bold 22px Arial";
@@ -818,7 +855,7 @@ export default function StudentGamePage() {
     ctx.font = "16px Arial";
     ctx.textAlign = "left";
     ctx.fillText(
-      `完成單字: ${state.wordsCompleted}${state.wordsCompleted >= WORDS_FOR_DOUBLE_SCORE ? " ✓雙倍!" : ` / ${WORDS_FOR_DOUBLE_SCORE}`}`,
+      `完成單字: ${state.wordsCompleted} / 10`,
       10,
       CANVAS_HEIGHT - 55
     );
@@ -864,12 +901,22 @@ export default function StudentGamePage() {
       }
       if (e.key === " ") e.preventDefault();
       
-      // 小恐龍遊戲：空格鍵或上鍵跳躍
+      // 小恐龍遊戲：空格鍵或上鍵跳躍（支援二段跳）
       if (selectedGame === "dino-game" && (e.key === " " || e.key === "ArrowUp" || e.key === "w")) {
         const state = gameStateRef.current;
-        if (!state.isJumping && state.dinoY === (state.groundY || DINO_GROUND_Y)) {
+        const groundY = state.groundY || DINO_GROUND_Y;
+        const jumpCount = state.jumpCount || 0;
+        
+        // 在地面上可以跳躍，或在空中可以二段跳
+        if (state.dinoY === groundY && jumpCount === 0) {
+          // 第一段跳
           state.dinoVelocity = DINO_JUMP_POWER;
           state.isJumping = true;
+          state.jumpCount = 1;
+        } else if (state.isJumping && jumpCount === 1 && state.dinoVelocity < 0) {
+          // 二段跳（在空中且向上時）
+          state.dinoVelocity = DINO_JUMP_POWER * 0.8; // 二段跳稍弱
+          state.jumpCount = 2;
         }
       }
     };
@@ -906,22 +953,24 @@ export default function StudentGamePage() {
           dinoY = groundY;
           dinoVelocity = 0;
           state.isJumping = false;
+          state.jumpCount = 0; // 重置跳躍次數
         }
 
         state.dinoY = dinoY;
         state.dinoVelocity = dinoVelocity;
 
-        // 生成仙人掌
+        // 生成仙人掌（最低高度和恐龍站的地方一樣，高度要能跳過）
         if (!state.lastCactusSpawn) state.lastCactusSpawn = now;
         if (now - state.lastCactusSpawn > CACTUS_SPAWN_INTERVAL) {
           if (!state.cacti) state.cacti = [];
+          // 仙人掌底部在地面上（和恐龍站的地方一樣），高度要能跳過
           state.cacti.push({
             id: Date.now(),
             x: CANVAS_WIDTH,
-            y: groundY - CACTUS_HEIGHT,
+            y: groundY - CACTUS_HEIGHT, // 底部在地面上
             width: CACTUS_WIDTH,
             height: CACTUS_HEIGHT,
-            speed: state.gameSpeed || 5,
+            speed: state.gameSpeed || 3,
           });
           state.lastCactusSpawn = now;
         }
@@ -941,11 +990,14 @@ export default function StudentGamePage() {
             letter = allLetters[Math.floor(Math.random() * allLetters.length)];
           }
 
+          // 字母在恐龍能吃到的高度（避免與仙人掌重疊）
+          // 仙人掌在地面上方20-80像素，字母在地面上方100-200像素
+          const letterY = groundY - 100 - Math.random() * 100; // 在地面上方100-200像素
           state.flyingLetters.push({
             id: Date.now() + Math.random(),
             letter,
             x: CANVAS_WIDTH,
-            y: groundY - 100 - Math.random() * 200,
+            y: letterY,
             width: LETTER_SIZE,
             height: LETTER_SIZE,
           });
@@ -969,12 +1021,20 @@ export default function StudentGamePage() {
             height: DINO_HEIGHT,
           };
 
+          const groundY = state.groundY || DINO_GROUND_Y;
           state.cacti.forEach((cactus) => {
+            // 仙人掌底部在地面上，碰撞檢測
+            const cactusRect = {
+              x: cactus.x,
+              y: groundY - cactus.height, // 底部在地面上
+              width: cactus.width,
+              height: cactus.height,
+            };
             if (
-              dinoRect.x < cactus.x + cactus.width &&
-              dinoRect.x + dinoRect.width > cactus.x &&
-              dinoRect.y < cactus.y + cactus.height &&
-              dinoRect.y + dinoRect.height > cactus.y
+              dinoRect.x < cactusRect.x + cactusRect.width &&
+              dinoRect.x + dinoRect.width > cactusRect.x &&
+              dinoRect.y < cactusRect.y + cactusRect.height &&
+              dinoRect.y + dinoRect.height > cactusRect.y
             ) {
               // 碰撞發生
               if (!state.playerInvincible || now > (state.invincibleEndTime || 0)) {
@@ -1025,14 +1085,38 @@ export default function StudentGamePage() {
                     state.wordsCompleted++;
                     state.score += 50;
 
-                    // 復活無敵衝刺功能
-                    if (state.playerHealth < state.maxPlayerHealth) {
-                      state.playerHealth = Math.min(state.maxPlayerHealth, state.playerHealth + 30);
+                    // 一個單字1積分，最多20積分
+                    const pointsToAdd = 1;
+                    const maxPoints = 20;
+                    if ((state.points || 0) + pointsToAdd <= maxPoints) {
+                      state.points = (state.points || 0) + pointsToAdd;
+                    } else {
+                      state.points = maxPoints;
                     }
-                    state.playerInvincible = true;
-                    state.invincibleEndTime = now + INVINCIBLE_DURATION;
-                    state.isDashing = true;
-                    state.dashEndTime = now + DASH_DURATION;
+
+                    // 完成單字效果：三選一（復活、無敵、衝刺）
+                    const effects = [
+                      { type: "heal", message: "💚 獲得復活效果！恢復30 HP" },
+                      { type: "invincible", message: "🛡️ 獲得無敵效果！3秒無敵" },
+                      { type: "dash", message: "⚡ 獲得衝刺效果！2秒衝刺" },
+                    ];
+                    const selectedEffect = effects[Math.floor(Math.random() * effects.length)];
+                    
+                    // 顯示效果提示
+                    state.effectMessage = selectedEffect.message;
+                    state.effectMessageEndTime = now + 3000; // 3秒後消失
+                    
+                    if (selectedEffect.type === "heal") {
+                      if (state.playerHealth < state.maxPlayerHealth) {
+                        state.playerHealth = Math.min(state.maxPlayerHealth, state.playerHealth + 30);
+                      }
+                    } else if (selectedEffect.type === "invincible") {
+                      state.playerInvincible = true;
+                      state.invincibleEndTime = now + INVINCIBLE_DURATION;
+                    } else if (selectedEffect.type === "dash") {
+                      state.isDashing = true;
+                      state.dashEndTime = now + DASH_DURATION;
+                    }
 
                     // 選擇下一個單字
                     const nextWord = selectNextWord(wordsRef.current);
@@ -1061,14 +1145,24 @@ export default function StudentGamePage() {
           state.isDashing = false;
         }
 
-        // 遊戲速度逐漸增加
+        // 清除過期的效果提示
+        if (state.effectMessageEndTime && now > state.effectMessageEndTime) {
+          state.effectMessage = undefined;
+          state.effectMessageEndTime = undefined;
+        }
+
+        // 遊戲速度逐漸增加（無上限，但增長較慢）
         if (state.gameSpeed) {
-          state.gameSpeed = Math.min(15, state.gameSpeed + 0.001);
+          state.gameSpeed = state.gameSpeed + 0.0005; // 降低增長速度
         }
 
         // 檢查遊戲結束
         if (state.playerHealth <= 0) {
           state.isGameOver = true;
+          // 保存積分
+          if (state.points > 0) {
+            savePoints(state.points);
+          }
           setShowResult(true);
         }
 
@@ -1302,8 +1396,7 @@ export default function StudentGamePage() {
           bullet.y + bullet.height > state.bossY
         ) {
           state.bossHealth -= bullet.damage;
-          const baseScore = 1;
-          state.score += state.wordsCompleted >= WORDS_FOR_DOUBLE_SCORE ? baseScore * 2 : baseScore;
+          // 不再給分，只有完成單字才給分
           return false;
         }
         return true;
@@ -1351,17 +1444,31 @@ export default function StudentGamePage() {
             const expectedLetter = state.correctLetters[nextIndex];
             if (letter.letter === expectedLetter) {
               state.collectedLetters.push(letter.letter);
-              const baseScore = 10;
-              state.score += state.wordsCompleted >= WORDS_FOR_DOUBLE_SCORE ? baseScore * 2 : baseScore;
 
+              // 只有完成單字才給分
               if (state.collectedLetters.length === state.correctLetters.length) {
                 state.wordsCompleted++;
-                const wordBonus = 50;
-                state.score += state.wordsCompleted >= WORDS_FOR_DOUBLE_SCORE ? wordBonus * 2 : wordBonus;
+                
+                // 根據難度給不同的積分
+                const pointsToAdd = settings.pointsPerWord;
+                const maxPoints = settings.maxPoints;
+                if (state.points + pointsToAdd <= maxPoints) {
+                  state.points = Math.round((state.points + pointsToAdd) * 10) / 10; // 保留一位小數
+                } else {
+                  state.points = maxPoints;
+                }
+                
+                // 分數顯示（用於顯示）
+                state.score += 50;
 
                 const powerTypes: ("spread" | "damage" | "shield" | "rapid")[] = ["spread", "damage", "shield", "rapid"];
                 const powerType = powerTypes[Math.floor(Math.random() * powerTypes.length)];
                 state.activePowerUps.push({ type: powerType, endTime: now + 10000 });
+
+                // 拼對10單字後boss血量歸零
+                if (state.wordsCompleted >= 10) {
+                  state.bossHealth = 0;
+                }
 
                 const nextWord = selectNextWord(wordsRef.current);
                 if (nextWord) {
@@ -1395,12 +1502,18 @@ export default function StudentGamePage() {
       if (state.playerHealth <= 0) {
         state.isGameOver = true;
         state.isVictory = false;
+        // 保存積分
+        if (state.points > 0) {
+          savePoints(state.points);
+        }
         setShowResult(true);
       } else if (state.bossHealth <= 0) {
         state.isGameOver = true;
         state.isVictory = true;
-        const victoryBonus = 100;
-        state.score += state.wordsCompleted >= WORDS_FOR_DOUBLE_SCORE ? victoryBonus * 2 : victoryBonus;
+        // 保存積分
+        if (state.points > 0) {
+          savePoints(state.points);
+        }
         setShowResult(true);
       }
 
@@ -1419,6 +1532,18 @@ export default function StudentGamePage() {
       }
     };
   }, [gameStarted, selectedGame, renderGame]);
+
+  const savePoints = async (points: number) => {
+    try {
+      await fetch("/api/student/points", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pointsToAdd: points }),
+      });
+    } catch (error) {
+      console.error("保存積分失敗:", error);
+    }
+  };
 
   const handleRestart = () => {
     setShowResult(false);
@@ -1519,19 +1644,25 @@ export default function StudentGamePage() {
             {selectedGame === "dino-game" ? (
               <>
                 <Typography variant="body2" color="text.secondary">
-                  • 空白鍵、上鍵 或 W 鍵跳躍
+                  • 空白鍵、上鍵 或 W 鍵跳躍（可二段跳）
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  • 跳起來收集字母（綠色為正確字母）拼出單字
+                  • 跳起來收集字母拼出單字（字母在高處，需要跳起來吃）
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  • 撞到仙人掌會扣血，小心避開！
+                  • 跳過地面上的仙人掌，撞到會扣血！
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  • 單字和仙人掌不會重疊，可以安心收集字母
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   • <b>完成單字可復活、無敵並獲得衝刺效果！</b>
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  • 遊戲速度會逐漸增加，挑戰你的反應！
+                  • 完成單字可獲得 <b>1 積分</b>，一局最多 <b>20 積分</b>
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  • 遊戲速度會持續增加，無上限！
                 </Typography>
               </>
             ) : (
@@ -1543,7 +1674,7 @@ export default function StudentGamePage() {
                   • 空白鍵 或 J 鍵發射子彈
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  • 收集正確的字母（綠色）拼出單字
+                  • 收集字母拼出單字（遊戲中會顯示單字提示）
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   • 完成單字獲得增強效果
@@ -1552,7 +1683,13 @@ export default function StudentGamePage() {
                   • <b>打敗 Boss 即可獲勝！</b>
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  • 完成 5 個單字後，所有分數 <b>x2</b>！
+                  • 完成單字可獲得積分（簡單1積分/單字，普通1.5積分/單字，困難2積分/單字，地獄5積分/單字）
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  • 一局最多可獲得積分：簡單 <b>10積分</b>，普通 <b>15積分</b>，困難 <b>20積分</b>，地獄 <b>50積分</b>
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  • 完成 <b>10 個單字</b>後，Boss 血量自動歸零！
                 </Typography>
               </>
             )}
@@ -1669,27 +1806,29 @@ export default function StudentGamePage() {
         <DialogContent>
           <Box sx={{ textAlign: "center", py: 2 }}>
             <Typography variant="h3" sx={{ color: "#ffcc00", mb: 2 }}>
-              {displayState.score} 分
+              {displayState.points || 0} 積分
             </Typography>
-            <Chip
-              label={getDifficultySettings()[displayState.difficulty].name}
-              sx={{
-                backgroundColor: getDifficultySettings()[displayState.difficulty].color,
-                color: "#fff",
-                mb: 2,
-              }}
-            />
+            {selectedGame === "plane-shooter" && (
+              <Chip
+                label={getDifficultySettings()[displayState.difficulty].name}
+                sx={{
+                  backgroundColor: getDifficultySettings()[displayState.difficulty].color,
+                  color: "#fff",
+                  mb: 2,
+                }}
+              />
+            )}
             <Typography variant="body1" sx={{ mb: 1 }}>
               完成單字: {displayState.wordsCompleted} 個
             </Typography>
-            {displayState.wordsCompleted >= WORDS_FOR_DOUBLE_SCORE && (
+            {displayState.wordsCompleted >= 10 && (
               <Typography variant="body1" sx={{ color: "#4caf50", mb: 1 }}>
-                ✓ 已解鎖雙倍分數！
+                🎉 完成10個單字，Boss爆炸！
               </Typography>
             )}
             {displayState.isVictory && (
               <Typography variant="body1" sx={{ color: "#4caf50" }}>
-                🏆 通關獎勵 +{displayState.wordsCompleted >= WORDS_FOR_DOUBLE_SCORE ? 200 : 100} 分
+                🏆 勝利！
               </Typography>
             )}
           </Box>
