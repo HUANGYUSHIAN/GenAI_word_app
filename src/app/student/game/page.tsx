@@ -283,6 +283,9 @@ const GAME_FLIGHT_DIFFICULTY: Record<Difficulty, DifficultySettings> = {
     playerDamage: 25,
     playerShootCooldown: 300,
     trackingDuration: 2000,
+    maxPlayerHealth: 300,
+    pointsPerWord: 1,
+    maxPoints: 10,
   },
   normal: {
     name: "😐 普通",
@@ -296,6 +299,9 @@ const GAME_FLIGHT_DIFFICULTY: Record<Difficulty, DifficultySettings> = {
     playerDamage: 18,
     playerShootCooldown: 280,
     trackingDuration: 2500,
+    maxPlayerHealth: 250,
+    pointsPerWord: 1.5,
+    maxPoints: 15,
   },
   hard: {
     name: "😈 困難",
@@ -309,6 +315,9 @@ const GAME_FLIGHT_DIFFICULTY: Record<Difficulty, DifficultySettings> = {
     playerDamage: 15,
     playerShootCooldown: 260,
     trackingDuration: 3000,
+    maxPlayerHealth: 100,
+    pointsPerWord: 2,
+    maxPoints: 20,
   },
   hell: {
     name: "💀 地獄",
@@ -322,6 +331,9 @@ const GAME_FLIGHT_DIFFICULTY: Record<Difficulty, DifficultySettings> = {
     playerDamage: 12,
     playerShootCooldown: 250,
     trackingDuration: 4000,
+    maxPlayerHealth: 100,
+    pointsPerWord: 5,
+    maxPoints: 50,
   },
 };
 
@@ -579,7 +591,6 @@ interface GameState {
   weaponLevel?: number; // 武器等級 (0=普通, 1=升級)
   autoShootCooldown?: number;
   lastZombieSpawn?: number;
-  lastLetterSpawn?: number;
   zombieSpawnRate?: number;
   letterSpawnRate?: number;
   mouseX?: number; // 滑鼠X座標
@@ -612,10 +623,7 @@ interface GameState {
   correctCount?: number;
   totalQuestions?: number;
   // 房屋修繕遊戲專用狀態
-  playerX?: number; // 玩家X位置（fixit遊戲）
-  playerY?: number; // 玩家Y位置（fixit遊戲）
   repairTargetCellId?: string | null; // 當前要修補的目標格子ID
-  perfectAnimation?: PerfectAnimation; // Perfect 動畫
   villainX?: number; // 壞人X位置
   villainY?: number; // 壞人Y位置
   villainTargetX?: number; // 壞人目標X位置
@@ -778,6 +786,7 @@ export default function StudentGamePage() {
     fallingLetters: [],
     activePowerUps: [],
     score: 0,
+    points: 0,
     correctLetters: [],
     currentWord: null,
     targetSpelling: "",
@@ -896,7 +905,6 @@ export default function StudentGamePage() {
         bullets: [],
         fallingLetters: [],
         activePowerUps: [],
-        score: 0,
         score: 0,
         points: 0,
         correctLetters: firstWord.spelling.split(""),
@@ -1274,8 +1282,8 @@ export default function StudentGamePage() {
       // #endregion
       
       const initialState: GameState = {
-        playerX: 0,
-        playerY: 0,
+        playerX: HOUSE_X - 60, // 玩家初始位置（房子左側）
+        playerY: HOUSE_Y + HOUSE_HEIGHT / 2, // 玩家初始位置（房子中間高度）
         playerHealth: 100,
         maxPlayerHealth: 100,
         bossX: 0,
@@ -1317,8 +1325,6 @@ export default function StudentGamePage() {
         answeredCount: 0,
         correctCount: 0,
         totalQuestions: loadedWords.length,
-        playerX: HOUSE_X - 60, // 玩家初始位置（房子左側）
-        playerY: HOUSE_Y + HOUSE_HEIGHT / 2, // 玩家初始位置（房子中間高度）
         repairTargetCellId: null, // 當前修補目標
         perfectAnimation: { show: false, startTime: 0, duration: PERFECT_ANIMATION_DURATION_FIXIT },
         villainX: HOUSE_X + HOUSE_WIDTH / 2, // 壞人初始位置（房子上方）
@@ -1354,6 +1360,7 @@ export default function StudentGamePage() {
       fallingLetters: [],
       activePowerUps: [],
       score: 0,
+      points: 0,
       correctLetters: firstWord.spelling.split(""),
       currentWord: firstWord.word,
       targetSpelling: firstWord.spelling,
@@ -3590,7 +3597,7 @@ export default function StudentGamePage() {
           state.dinoVelocity = DINO_JUMP_POWER;
           state.isJumping = true;
           state.jumpCount = 1;
-        } else if (state.isJumping && jumpCount === 1 && state.dinoVelocity < 0) {
+        } else if (state.isJumping && jumpCount === 1 && (state.dinoVelocity || 0) < 0) {
           // 二段跳（在空中且向上時）
           state.dinoVelocity = DINO_JUMP_POWER * 0.8; // 二段跳稍弱
           state.jumpCount = 2;
@@ -4357,6 +4364,7 @@ export default function StudentGamePage() {
                   // 生成3隻殭屍，從不同方向
                   const spawnSides = [0, 1, 2]; // 上、右、下
                   spawnSides.forEach((side, index) => {
+                    if (!state.zombies) return; // 確保 zombies 存在
                     let zombieX = 0;
                     let zombieY = 0;
                     
@@ -5295,7 +5303,7 @@ export default function StudentGamePage() {
       if (handleMouseMove) {
         window.removeEventListener("mousemove", handleMouseMove);
       }
-      if (handleFruitSlicerMouseDown && canvasRef.current) {
+      if (handleFruitSlicerMouseDown && handleFruitSlicerMouseMove && handleFruitSlicerMouseUp && canvasRef.current) {
         canvasRef.current.removeEventListener("mousedown", handleFruitSlicerMouseDown);
         canvasRef.current.removeEventListener("mousemove", handleFruitSlicerMouseMove);
         canvasRef.current.removeEventListener("mouseup", handleFruitSlicerMouseUp);
@@ -5360,17 +5368,14 @@ export default function StudentGamePage() {
               <Card
                 sx={{
                   height: "100%",
-                  cursor: game.disabled ? "not-allowed" : "pointer",
-                  opacity: game.disabled ? 0.5 : 1,
+                  cursor: "pointer",
                   transition: "transform 0.2s, box-shadow 0.2s",
-                  "&:hover": game.disabled
-                    ? {}
-                    : {
-                        transform: "translateY(-4px)",
-                        boxShadow: 4,
-                      },
+                  "&:hover": {
+                    transform: "translateY(-4px)",
+                    boxShadow: 4,
+                  },
                 }}
-                onClick={() => !game.disabled && setSelectedGame(game.id as GameType)}
+                onClick={() => setSelectedGame(game.id as GameType)}
               >
                 <Box
                   sx={{
