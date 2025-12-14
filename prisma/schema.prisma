@@ -13,7 +13,7 @@ datasource db {
 model User {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   userId      String   @unique // 30字符的随机ID（英文+数字）
-  googleId    String?  @unique // Google OAuth的id（sub），作为key
+  googleId    String?  // Google OAuth的id（sub），作为key (unique constraint removed temporarily due to existing null values)
   name        String?
   email       String?
   image       String?
@@ -43,6 +43,8 @@ model Student {
   paraGame    String?  // game parameter (JSON string)
   payments    String?  // 付款資料 (JSON string)
   lfriendIDs  String[] @default([]) // friend ID list
+  pointsBalance Int    @default(0) // 遊戲點數餘額
+  purchasedCoupons PurchasedCoupon[] // 已購買的優惠券
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -95,6 +97,7 @@ model Admin {
   userId      String   @unique
   user        User     @relation(fields: [userId], references: [userId], onDelete: Cascade)
   permissions String[] @default([]) // 管理者權限
+  drawCostPoints Int   @default(0) // 抽獎一次所需點數（可由管理員設定）
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -107,12 +110,39 @@ model Coupon {
   name      String   // 優惠券名稱
   period    DateTime // 使用期限(截止日期)
   link      String?  // coupon QRcode or URL
-  text      String?  // 折價券內容
+  text      String?  // 折價券內容 (JSON string with detailed coupon data)
   picture   String?  // 折價券圖片設計 (URL)
+  weight    Int      @default(1) // 抽獎權重（用於加權隨機選擇）
+  maxIssuance Int?   // 最大發行數量（null 表示無限制）
+  issuedCount Int    @default(0) // 已發行數量（通過抽獎獲得的次數）
+  purchasedCoupons PurchasedCoupon[] // 已購買此優惠券的記錄
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("coupons")
+}
+
+model PurchasedCoupon {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  couponId       String   // Coupon.couponId (string ID for easy querying)
+  couponDbId     String   // 關聯到 Coupon.id (ObjectId)
+  coupon         Coupon   @relation(fields: [couponDbId], references: [id], onDelete: Cascade)
+  studentUserId  String   // 關聯到 Student.userId
+  student        Student  @relation(fields: [studentUserId], references: [userId], onDelete: Cascade)
+  purchasedAt    DateTime @default(now()) // 購買時間
+  redemptionToken String  @unique // 唯一的兌換令牌（保留字段，現不使用）
+  status         String   @default("UNUSED") // UNUSED | REDEEMING | REDEEMED | EXPIRED
+  redeemStartedAt DateTime? // 開始兌換的時間（當 status = REDEEMING）
+  redeemExpiresAt DateTime? // 兌換過期時間（redeemStartedAt + 5分鐘）
+  redeemedAt     DateTime? // 兌換完成時間（當 status = REDEEMED）
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("purchased_coupons")
+  @@index([studentUserId])
+  @@index([couponId])
+  @@index([status])
+  @@index([redeemExpiresAt])
 }
 
 model Vocabulary {

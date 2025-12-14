@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import {
   Box,
   Typography,
@@ -22,13 +23,14 @@ import {
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import SendIcon from "@mui/icons-material/Send";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import ImageUpload from "@/components/ImageUpload";
 
 interface CouponFormData {
   supplierId: string;
   shopName: string;
   couponName: string;
   description: string;
-  imageUrl: string;
   discountType: "threshold_amount_off" | "amount_off" | "percentage";
   minimumOrderAmount: number | null;
   discountAmount: number | null;
@@ -38,15 +40,16 @@ interface CouponFormData {
   totalQuantity: number | null;
   perUserLimit: number | null;
   perDayLimit: number | null;
-  requiredPoints: number;
-  internalCode: string;
   branch: string;
+  picture: string;
   status: "draft" | "active" | "disabled";
 }
 
-export default function SupplierCouponPage() {
+export default function NewCouponPage() {
+  const router = useRouter();
   const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
+  const [loadingShopProfile, setLoadingShopProfile] = useState(true);
   const [error, setError] = useState("");
   const [result, setResult] = useState<any>(null);
   const [formData, setFormData] = useState<CouponFormData>({
@@ -54,7 +57,6 @@ export default function SupplierCouponPage() {
     shopName: "",
     couponName: "",
     description: "",
-    imageUrl: "",
     discountType: "threshold_amount_off",
     minimumOrderAmount: null,
     discountAmount: null,
@@ -64,18 +66,91 @@ export default function SupplierCouponPage() {
     totalQuantity: null,
     perUserLimit: null,
     perDayLimit: null,
-    requiredPoints: 0,
-    internalCode: "",
     branch: "",
-    status: "draft",
+    picture: "",
+    status: "active", // Default to "active" so coupons appear in student catalog immediately
   });
 
-  // 自動設置 supplierId
+  const STORAGE_KEY = "supplier_coupon_form_draft";
+
+  // 從 localStorage 載入表單數據
+  const loadFormDataFromStorage = (): CouponFormData | null => {
+    if (typeof window === "undefined") return null;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error("Error loading form data from storage:", e);
+    }
+    return null;
+  };
+
+  // 保存表單數據到 localStorage
+  const saveFormDataToStorage = (data: CouponFormData) => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.error("Error saving form data to storage:", e);
+    }
+  };
+
+  // 清除 localStorage 中的表單數據
+  const clearFormDataFromStorage = () => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (e) {
+      console.error("Error clearing form data from storage:", e);
+    }
+  };
+
+  // 載入店鋪資訊作為預設值
   useEffect(() => {
     if (session?.userId) {
-      setFormData((prev) => ({ ...prev, supplierId: session.userId! }));
+      // 先嘗試從 localStorage 載入
+      const savedFormData = loadFormDataFromStorage();
+      if (savedFormData) {
+        setFormData(savedFormData);
+      }
+      loadShopProfile();
     }
   }, [session]);
+
+  // 當表單數據改變時，自動保存到 localStorage
+  useEffect(() => {
+    if (session?.userId && formData.supplierId) {
+      saveFormDataToStorage(formData);
+    }
+  }, [formData, session]);
+
+  const loadShopProfile = async () => {
+    try {
+      setLoadingShopProfile(true);
+      const response = await fetch("/api/supplier/shop-profile");
+      if (response.ok) {
+        const data = await response.json();
+        const defaults = data.couponFormDefaults;
+
+        // 只有在沒有從 localStorage 載入數據時才使用店鋪資訊預設值
+        const savedFormData = loadFormDataFromStorage();
+        if (!savedFormData || !savedFormData.shopName) {
+          setFormData((prev) => ({
+            ...prev,
+            supplierId: session?.userId || "",
+            shopName: defaults.defaultShopName || prev.shopName,
+            branch: defaults.defaultBranchName || prev.branch,
+          }));
+        }
+      }
+    } catch (err) {
+      console.error("Error loading shop profile:", err);
+    } finally {
+      setLoadingShopProfile(false);
+    }
+  };
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -83,7 +158,6 @@ export default function SupplierCouponPage() {
     setResult(null);
 
     try {
-      // 構建請求數據（supplierId 會自動從 session 獲取，但這裡也傳遞以確保）
       const requestData: any = {
         supplierId: session?.userId || formData.supplierId,
         shopName: formData.shopName,
@@ -92,11 +166,9 @@ export default function SupplierCouponPage() {
         discountType: formData.discountType,
         startDate: formData.startDate,
         endDate: formData.endDate,
-        requiredPoints: formData.requiredPoints,
-        status: formData.status,
+        status: formData.status || "active", // Default to "active" if not specified
       };
 
-      // 根據折扣類型添加對應字段
       if (formData.discountType === "threshold_amount_off") {
         requestData.minimumOrderAmount = formData.minimumOrderAmount;
         requestData.discountAmount = formData.discountAmount;
@@ -106,13 +178,11 @@ export default function SupplierCouponPage() {
         requestData.discountPercentage = formData.discountPercentage;
       }
 
-      // 添加可選字段
-      if (formData.imageUrl) requestData.imageUrl = formData.imageUrl;
       if (formData.totalQuantity !== null) requestData.totalQuantity = formData.totalQuantity;
       if (formData.perUserLimit !== null) requestData.perUserLimit = formData.perUserLimit;
       if (formData.perDayLimit !== null) requestData.perDayLimit = formData.perDayLimit;
-      if (formData.internalCode) requestData.internalCode = formData.internalCode;
       if (formData.branch) requestData.branch = formData.branch;
+      if (formData.picture) requestData.picture = formData.picture;
 
       const response = await fetch("/api/supplier/coupons/generate", {
         method: "POST",
@@ -129,6 +199,9 @@ export default function SupplierCouponPage() {
       }
 
       setResult(data);
+      setSuccess("優惠券已成功建立並儲存！");
+      // 清除 localStorage 中的表單數據
+      clearFormDataFromStorage();
     } catch (err: any) {
       setError(err.message || "發生錯誤");
       console.error("Error:", err);
@@ -137,34 +210,49 @@ export default function SupplierCouponPage() {
     }
   };
 
-  const loadExample = () => {
-    setFormData({
-      supplierId: "", // 將自動從 session 獲取
-      shopName: "Awesome Coffee",
-      couponName: "滿 300 折 50",
-      description: "僅限內用，不與其他優惠併用",
-      imageUrl: "https://example.com/coffee.jpg",
-      discountType: "threshold_amount_off",
-      minimumOrderAmount: 300,
-      discountAmount: 50,
-      discountPercentage: null,
-      startDate: "2025-01-01",
-      endDate: "2025-03-31",
-      totalQuantity: 100,
-      perUserLimit: 1,
-      perDayLimit: 10,
-      requiredPoints: 500,
-      internalCode: "COFFEE2025",
-      branch: "台北信義店",
-      status: "active",
-    });
-  };
+  const [success, setSuccess] = useState("");
 
   return (
     <Box>
-      <Typography variant="h4" sx={{ mb: 3 }}>
-        優惠券生成測試
-      </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 3 }}>
+        <Box sx={{ display: "flex", alignItems: "center" }}>
+          <Button
+            startIcon={<ArrowBackIcon />}
+            onClick={() => router.push("/supplier/coupons")}
+            sx={{ mr: 2 }}
+          >
+            返回優惠券管理
+          </Button>
+          <Typography variant="h4">新增優惠券</Typography>
+        </Box>
+        <Button
+          variant="outlined"
+          onClick={() => {
+            if (confirm("確定要清除目前填寫的內容嗎？")) {
+              clearFormDataFromStorage();
+              setFormData({
+                supplierId: session?.userId || "",
+                shopName: "",
+                couponName: "",
+                description: "",
+                discountType: "threshold_amount_off",
+                minimumOrderAmount: null,
+                discountAmount: null,
+                discountPercentage: null,
+                startDate: "",
+                endDate: "",
+                totalQuantity: null,
+                perUserLimit: null,
+                perDayLimit: null,
+                branch: "",
+                status: "active", // Default to "active" so coupons appear in student catalog immediately
+              });
+            }
+          }}
+        >
+          清除表單
+        </Button>
+      </Box>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
@@ -172,32 +260,49 @@ export default function SupplierCouponPage() {
         </Alert>
       )}
 
+      {success && (
+        <Alert
+          severity="success"
+          sx={{ mb: 2 }}
+          onClose={() => {
+            setSuccess("");
+            router.push("/supplier/coupons");
+          }}
+          action={
+            <Button color="inherit" size="small" onClick={() => router.push("/supplier/coupons")}>
+              查看優惠券列表
+            </Button>
+          }
+        >
+          {success}
+        </Alert>
+      )}
+
+      {loadingShopProfile && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          正在載入店鋪資訊...
+        </Alert>
+      )}
+
       <Paper sx={{ p: 3, mb: 3 }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
-          <Typography variant="h6">優惠券表單</Typography>
-          <Button variant="outlined" onClick={loadExample} size="small">
-            載入範例
-          </Button>
-        </Box>
+        <Typography variant="h6" sx={{ mb: 2 }}>
+          優惠券資訊
+        </Typography>
 
         <Grid container spacing={2}>
-          <Grid item xs={12}>
-            <Alert severity="info" sx={{ mb: 2 }}>
-              Supplier ID 將自動從您的登入 session 獲取: {session?.userId || "未登入"}
-            </Alert>
-          </Grid>
           <Grid item xs={12} md={6}>
             <TextField
-              label="店家名稱"
+              label="店家名稱 *"
               fullWidth
               value={formData.shopName}
               onChange={(e) => setFormData({ ...formData, shopName: e.target.value })}
               required
+              helperText="可從店鋪資訊頁面自動載入"
             />
           </Grid>
           <Grid item xs={12} md={6}>
             <TextField
-              label="優惠券名稱"
+              label="優惠券名稱 *"
               fullWidth
               value={formData.couponName}
               onChange={(e) => setFormData({ ...formData, couponName: e.target.value })}
@@ -300,7 +405,7 @@ export default function SupplierCouponPage() {
           )}
           <Grid item xs={12} md={6}>
             <TextField
-              label="開始日期"
+              label="開始日期 *"
               type="date"
               fullWidth
               InputLabelProps={{ shrink: true }}
@@ -311,7 +416,7 @@ export default function SupplierCouponPage() {
           </Grid>
           <Grid item xs={12} md={6}>
             <TextField
-              label="結束日期"
+              label="結束日期 *"
               type="date"
               fullWidth
               InputLabelProps={{ shrink: true }}
@@ -365,33 +470,19 @@ export default function SupplierCouponPage() {
           </Grid>
           <Grid item xs={12} md={6}>
             <TextField
-              label="所需點數"
-              type="number"
-              fullWidth
-              value={formData.requiredPoints}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  requiredPoints: Number(e.target.value) || 0,
-                })
-              }
-              required
-            />
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <TextField
-              label="內部代碼"
-              fullWidth
-              value={formData.internalCode}
-              onChange={(e) => setFormData({ ...formData, internalCode: e.target.value })}
-            />
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <TextField
               label="分店"
               fullWidth
               value={formData.branch}
               onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
+              helperText="可從店鋪資訊頁面自動載入"
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <ImageUpload
+              value={formData.picture}
+              onChange={(url) => setFormData({ ...formData, picture: url })}
+              label="優惠券圖片"
+              helperText="可拖放圖片、選擇檔案或貼上圖片（Ctrl+V / Cmd+V）"
             />
           </Grid>
           <Grid item xs={12} md={6}>
@@ -414,22 +505,15 @@ export default function SupplierCouponPage() {
             </FormControl>
           </Grid>
           <Grid item xs={12}>
-            <TextField
-              label="圖片 URL"
-              fullWidth
-              value={formData.imageUrl}
-              onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-            />
-          </Grid>
-          <Grid item xs={12}>
             <Button
               variant="contained"
               startIcon={loading ? <CircularProgress size={20} /> : <SendIcon />}
               onClick={handleSubmit}
               disabled={loading}
               fullWidth
+              size="large"
             >
-              {loading ? "生成中..." : "生成優惠券"}
+              {loading ? "建立中..." : "建立優惠券"}
             </Button>
           </Grid>
         </Grid>
@@ -438,23 +522,12 @@ export default function SupplierCouponPage() {
       {result && (
         <Paper sx={{ p: 3 }}>
           <Typography variant="h6" sx={{ mb: 2 }}>
-            生成結果
+            優惠券預覽
           </Typography>
 
           <Accordion>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography>優惠券數據 (couponData)</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <Box component="pre" sx={{ overflow: "auto", fontSize: "0.875rem" }}>
-                {JSON.stringify(result.couponData, null, 2)}
-              </Box>
-            </AccordionDetails>
-          </Accordion>
-
-          <Accordion>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography>供應商預覽 (supplierPreview)</Typography>
+              <Typography>供應商預覽</Typography>
             </AccordionSummary>
             <AccordionDetails>
               <Box>
@@ -474,20 +547,13 @@ export default function SupplierCouponPage() {
                 <Typography variant="body2" sx={{ mb: 1 }}>
                   {result.supplierPreview.pointsText}
                 </Typography>
-                <Divider sx={{ my: 1 }} />
-                <Typography variant="body2">
-                  <strong>QR Code:</strong> {result.supplierPreview.qrCodeContent}
-                </Typography>
-                <Typography variant="body2">
-                  <strong>Barcode:</strong> {result.supplierPreview.barcodeContent}
-                </Typography>
               </Box>
             </AccordionDetails>
           </Accordion>
 
           <Accordion>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography>學生視圖 (studentView)</Typography>
+              <Typography>學生視圖</Typography>
             </AccordionSummary>
             <AccordionDetails>
               <Box>
@@ -500,26 +566,13 @@ export default function SupplierCouponPage() {
                 </Typography>
                 <Divider sx={{ my: 1 }} />
                 <Typography variant="body2" sx={{ mb: 1 }}>
-                  <strong>簡短描述:</strong> {result.studentView.shortDescription}
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 1 }}>
                   <strong>折扣摘要:</strong> {result.studentView.discountSummary}
                 </Typography>
                 <Typography variant="body2" sx={{ mb: 1 }}>
                   <strong>使用規則:</strong> {result.studentView.usageRules}
                 </Typography>
                 <Typography variant="body2" sx={{ mb: 1 }}>
-                  <strong>有效期間:</strong> {result.studentView.validityText}
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 1 }}>
-                  <strong>所需點數:</strong> {result.studentView.rewardCost} 點
-                </Typography>
-                <Divider sx={{ my: 1 }} />
-                <Typography variant="body2" sx={{ mb: 1 }}>
                   {result.studentView.canRedeemCondition}
-                </Typography>
-                <Typography variant="body2">
-                  <strong>QR Code:</strong> {result.studentView.qrCodeContent}
                 </Typography>
               </Box>
             </AccordionDetails>
@@ -529,7 +582,4 @@ export default function SupplierCouponPage() {
     </Box>
   );
 }
-
-
-
 

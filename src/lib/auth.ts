@@ -82,7 +82,8 @@ export const authOptions: NextAuthOptions = {
       const image = user.image || undefined;
 
       // 查找是否已存在該 Google ID 的用戶
-      let dbUser = await prisma.user.findUnique({
+      // 使用 findFirst 因為 googleId 可能沒有唯一約束（如果有多個 null 值）
+      let dbUser = await prisma.user.findFirst({
         where: { googleId },
       });
 
@@ -140,12 +141,14 @@ export const authOptions: NextAuthOptions = {
         (user as any).isNewUser = true;
       } else {
         // 已存在用戶：更新信息
+        // 使用 userId 來更新，因為 googleId 可能沒有唯一約束
         dbUser = await prisma.user.update({
-          where: { googleId },
+          where: { userId: dbUser.userId },
           data: {
             email,
             name,
             image,
+            googleId, // 確保 googleId 被設置
           },
         });
         console.log("[SignIn] Updated existing user:", { userId: dbUser.userId });
