@@ -1803,8 +1803,9 @@ export default function StudentGamePage() {
     });
 
     // 繪製玩家（人形拿槍，更精緻）
-    const playerY = state.playerY;
-    const playerCenterX = state.playerX + PLAYER_WIDTH / 2;
+    const playerX = state.playerX || CANVAS_WIDTH / 2 - PLAYER_WIDTH / 2;
+    const playerY = state.playerY || CANVAS_HEIGHT - PLAYER_HEIGHT - 20;
+    const playerCenterX = playerX + PLAYER_WIDTH / 2;
     const playerCenterY = playerY + PLAYER_HEIGHT / 2;
     
     if (!state.playerInvincible || Math.floor(Date.now() / 100) % 2 === 0) {
@@ -1842,10 +1843,10 @@ export default function StudentGamePage() {
       
       // 身體（上半身）
       ctx.fillStyle = "#2c5aa0"; // 藍色衣服
-      ctx.fillRect(state.playerX + 8, playerY + 18, 14, 12);
+      ctx.fillRect(playerX + 8, playerY + 18, 14, 12);
       ctx.strokeStyle = "#1a3d6b";
       ctx.lineWidth = 1;
-      ctx.strokeRect(state.playerX + 8, playerY + 18, 14, 12);
+      ctx.strokeRect(playerX + 8, playerY + 18, 14, 12);
       
       // 手臂（根據武器角度調整）
       ctx.save();
@@ -1877,22 +1878,22 @@ export default function StudentGamePage() {
       
       // 右手臂
       ctx.fillStyle = "#ffdbac";
-      ctx.fillRect(state.playerX + 6, playerY + 20, 4, 8);
+      ctx.fillRect(playerX + 6, playerY + 20, 4, 8);
       ctx.strokeStyle = "#d4a574";
       ctx.lineWidth = 1;
-      ctx.strokeRect(state.playerX + 6, playerY + 20, 4, 8);
+      ctx.strokeRect(playerX + 6, playerY + 20, 4, 8);
       
       // 下半身（褲子）
       ctx.fillStyle = "#1a1a1a";
-      ctx.fillRect(state.playerX + 10, playerY + 30, 10, 10);
+      ctx.fillRect(playerX + 10, playerY + 30, 10, 10);
       ctx.strokeStyle = "#333333";
       ctx.lineWidth = 1;
-      ctx.strokeRect(state.playerX + 10, playerY + 30, 10, 10);
+      ctx.strokeRect(playerX + 10, playerY + 30, 10, 10);
       
       // 腿
       ctx.fillStyle = "#2c2c2c";
-      ctx.fillRect(state.playerX + 11, playerY + 40, 3, 8);
-      ctx.fillRect(state.playerX + 16, playerY + 40, 3, 8);
+      ctx.fillRect(playerX + 11, playerY + 40, 3, 8);
+      ctx.fillRect(playerX + 16, playerY + 40, 3, 8);
     }
     
     // 無敵效果
