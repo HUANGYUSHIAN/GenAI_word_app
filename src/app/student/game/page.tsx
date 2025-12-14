@@ -542,8 +542,8 @@ const FIXIT_DIFFICULTY: Record<Difficulty, DifficultySettings> = {
 };
 
 interface GameState {
-  playerX: number;
-  playerY: number;
+  playerX?: number; // 玩家X位置（飛機大戰、fixit遊戲）
+  playerY?: number; // 玩家Y位置（飛機大戰、fixit遊戲）
   playerHealth: number;
   maxPlayerHealth: number;
   bossX: number;
@@ -1512,20 +1512,24 @@ export default function StudentGamePage() {
       ctx.fillText(displayText, CANVAS_WIDTH / 2, 55);
     }
 
-    // 效果提示訊息
+    // 效果提示訊息（告知玩家獲得什麼效果）
     const now = Date.now();
     if (state.effectMessage && state.effectMessageEndTime && now < state.effectMessageEndTime) {
       const remaining = state.effectMessageEndTime - now;
-      const alpha = Math.min(1, remaining / 500); // 最後0.5秒淡出
-      ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * alpha})`;
-      ctx.fillRect(CANVAS_WIDTH / 2 - 200, 100, 400, 60);
-      ctx.strokeStyle = `rgba(255, 255, 0, ${alpha})`;
-      ctx.lineWidth = 3;
-      ctx.strokeRect(CANVAS_WIDTH / 2 - 200, 100, 400, 60);
+      const alpha = Math.min(1, remaining / 800); // 最後0.8秒淡出
+      // 半透明黑色背景
+      ctx.fillStyle = `rgba(0, 0, 0, ${0.8 * alpha})`;
+      ctx.fillRect(CANVAS_WIDTH / 2 - 250, 80, 500, 80);
+      // 黃色邊框（更粗更明顯）
+      ctx.strokeStyle = `rgba(255, 215, 0, ${alpha})`;
+      ctx.lineWidth = 4;
+      ctx.strokeRect(CANVAS_WIDTH / 2 - 250, 80, 500, 80);
+      // 白色文字（更大更清楚）
       ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-      ctx.font = "bold 24px Arial";
+      ctx.font = "bold 28px Arial";
       ctx.textAlign = "center";
-      ctx.fillText(state.effectMessage, CANVAS_WIDTH / 2, 140);
+      ctx.textBaseline = "middle";
+      ctx.fillText(state.effectMessage, CANVAS_WIDTH / 2, 120);
     }
 
     // 暫停
@@ -3946,15 +3950,15 @@ export default function StudentGamePage() {
 
                     // 完成單字效果：三選一（復活、無敵、衝刺）
                     const effects = [
-                      { type: "heal", message: "💚 獲得復活效果！恢復30 HP" },
-                      { type: "invincible", message: "🛡️ 獲得無敵效果！3秒無敵" },
-                      { type: "dash", message: "⚡ 獲得衝刺效果！2秒衝刺" },
+                      { type: "heal", message: "💚 獲得復活效果！恢復 30 HP" },
+                      { type: "invincible", message: "🛡️ 獲得無敵效果！3 秒無敵時間" },
+                      { type: "dash", message: "⚡ 獲得衝刺效果！2 秒衝刺加速" },
                     ];
                     const selectedEffect = effects[Math.floor(Math.random() * effects.length)];
                     
-                    // 顯示效果提示
+                    // 顯示效果提示（告知玩家獲得什麼效果）
                     state.effectMessage = selectedEffect.message;
-                    state.effectMessageEndTime = now + 3000; // 3秒後消失
+                    state.effectMessageEndTime = now + 4000; // 4秒後消失，讓玩家有足夠時間看到
                     
                     if (selectedEffect.type === "heal") {
                       if (state.playerHealth < state.maxPlayerHealth) {
@@ -5352,11 +5356,11 @@ export default function StudentGamePage() {
 
   // 遊戲選擇畫面
   if (selectedGame === "none") {
-    return (
-      <Box>
-        <Typography variant="h4" sx={{ mb: 3 }}>
+  return (
+    <Box>
+      <Typography variant="h4" sx={{ mb: 3 }}>
           🎮 單字遊戲
-        </Typography>
+      </Typography>
 
         <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
           選擇一個遊戲開始學習單字！
@@ -5662,10 +5666,10 @@ export default function StudentGamePage() {
           >
             開始遊戲
           </Button>
-        </Paper>
-      </Box>
-    );
-  }
+      </Paper>
+    </Box>
+  );
+}
 
   // 遊戲進行中
   return (
