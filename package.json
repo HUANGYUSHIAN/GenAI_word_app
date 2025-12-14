@@ -25,7 +25,8 @@
     "db": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/db.ts",
     "check:oauth": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/check-google-oauth.ts",
     "check:vercel": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/check-vercel-env.ts",
-    "test:env": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/test-env.ts"
+    "test:env": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/test-env.ts",
+    "test:coupon-generate": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/test-coupon-generate.ts"
   },
   "dependencies": {
     "@emotion/cache": "^11.13.3",
@@ -39,6 +40,7 @@
     "next": "16.0.1",
     "next-auth": "^4.24.10",
     "papaparse": "^5.5.3",
+    "qrcode.react": "^4.2.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "xlsx": "^0.18.5"

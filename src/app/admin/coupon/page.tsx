@@ -21,11 +21,19 @@ import {
   Typography,
   CircularProgress,
   Alert,
+  Grid,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Divider,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
+import SettingsIcon from "@mui/icons-material/Settings";
+import ImageUpload from "@/components/ImageUpload";
 
 interface Coupon {
   couponId: string;
@@ -37,6 +45,23 @@ interface Coupon {
   createdAt: string;
 }
 
+interface CouponFormData {
+  shopName: string;
+  couponName: string;
+  description: string;
+  discountType: "threshold_amount_off" | "amount_off" | "percentage";
+  minimumOrderAmount: number | null;
+  discountAmount: number | null;
+  discountPercentage: number | null;
+  startDate: string;
+  endDate: string;
+  totalQuantity: number | null;
+  perUserLimit: number | null;
+  perDayLimit: number | null;
+  branch: string;
+  picture: string;
+}
+
 export default function AdminCouponPage() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,18 +70,32 @@ export default function AdminCouponPage() {
   const [total, setTotal] = useState(0);
   const [openDialog, setOpenDialog] = useState(false);
   const [openViewDialog, setOpenViewDialog] = useState(false);
+  const [openDrawCostDialog, setOpenDrawCostDialog] = useState(false);
   const [selectedCoupon, setSelectedCoupon] = useState<Coupon | null>(null);
   const [error, setError] = useState("");
-  const [formData, setFormData] = useState({
-    name: "",
-    period: "",
-    link: "",
-    text: "",
+  const [drawCostPoints, setDrawCostPoints] = useState<number>(0);
+  const [drawCostInput, setDrawCostInput] = useState<string>("0");
+  const [savingDrawCost, setSavingDrawCost] = useState(false);
+  const [formData, setFormData] = useState<CouponFormData>({
+    shopName: "",
+    couponName: "",
+    description: "",
+    discountType: "threshold_amount_off",
+    minimumOrderAmount: null,
+    discountAmount: null,
+    discountPercentage: null,
+    startDate: "",
+    endDate: "",
+    totalQuantity: null,
+    perUserLimit: null,
+    perDayLimit: null,
+    branch: "",
     picture: "",
   });
 
   useEffect(() => {
     fetchCoupons();
+    fetchDrawCost();
   }, [page, rowsPerPage]);
 
   const fetchCoupons = async () => {
@@ -80,6 +119,19 @@ export default function AdminCouponPage() {
     }
   };
 
+  const fetchDrawCost = async () => {
+    try {
+      const response = await fetch("/api/admin/draw-cost");
+      if (response.ok) {
+        const data = await response.json();
+        setDrawCostPoints(data.drawCostPoints || 0);
+        setDrawCostInput(String(data.drawCostPoints || 0));
+      }
+    } catch (error) {
+      console.error("Error fetching draw cost:", error);
+    }
+  };
+
   const handleView = (coupon: Coupon) => {
     setSelectedCoupon(coupon);
     setOpenViewDialog(true);
@@ -87,12 +139,31 @@ export default function AdminCouponPage() {
 
   const handleEdit = (coupon: Coupon) => {
     setSelectedCoupon(coupon);
+    // Parse coupon data from text field
+    let couponData: any = {};
+    try {
+      if (coupon.text) {
+        couponData = JSON.parse(coupon.text);
+      }
+    } catch (e) {
+      console.error("Error parsing coupon data:", e);
+    }
+
     setFormData({
-      name: coupon.name,
-      period: coupon.period.split("T")[0],
-      link: coupon.link || "",
-      text: coupon.text || "",
-      picture: coupon.picture || "",
+      shopName: couponData.shopName || "",
+      couponName: coupon.name,
+      description: couponData.description || "",
+      discountType: couponData.discountType || "threshold_amount_off",
+      minimumOrderAmount: couponData.minimumOrderAmount || null,
+      discountAmount: couponData.discountAmount || null,
+      discountPercentage: couponData.discountPercentage || null,
+      startDate: couponData.startDate || "",
+      endDate: couponData.endDate || "",
+      totalQuantity: couponData.totalQuantity || null,
+      perUserLimit: couponData.perUserLimit || null,
+      perDayLimit: couponData.perDayLimit || null,
+      branch: couponData.branch || "",
+      picture: coupon.picture || "", // 從 coupon.picture 讀取圖片 URL
     });
     setOpenDialog(true);
   };
@@ -142,10 +213,19 @@ export default function AdminCouponPage() {
   const handleAdd = () => {
     setSelectedCoupon(null);
     setFormData({
-      name: "",
-      period: "",
-      link: "",
-      text: "",
+      shopName: "",
+      couponName: "",
+      description: "",
+      discountType: "threshold_amount_off",
+      minimumOrderAmount: null,
+      discountAmount: null,
+      discountPercentage: null,
+      startDate: "",
+      endDate: "",
+      totalQuantity: null,
+      perUserLimit: null,
+      perDayLimit: null,
+      branch: "",
       picture: "",
     });
     setOpenDialog(true);
@@ -162,7 +242,8 @@ export default function AdminCouponPage() {
         setOpenDialog(false);
         fetchCoupons();
       } else {
-        setError("新增優惠券失敗");
+        const errorData = await response.json();
+        setError(errorData.error || "新增優惠券失敗");
       }
     } catch (error) {
       console.error("Error adding coupon:", error);
@@ -170,17 +251,56 @@ export default function AdminCouponPage() {
     }
   };
 
+  const handleSaveDrawCost = async () => {
+    const cost = parseInt(drawCostInput, 10);
+    if (isNaN(cost) || cost < 0) {
+      setError("點數必須是非負整數");
+      return;
+    }
+
+    try {
+      setSavingDrawCost(true);
+      const response = await fetch("/api/admin/draw-cost", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ drawCostPoints: cost }),
+      });
+      if (response.ok) {
+        setDrawCostPoints(cost);
+        setOpenDrawCostDialog(false);
+        setError("");
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || "更新抽獎點數失敗");
+      }
+    } catch (error) {
+      console.error("Error updating draw cost:", error);
+      setError("更新抽獎點數失敗");
+    } finally {
+      setSavingDrawCost(false);
+    }
+  };
+
   return (
     <Box>
       <Box sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}>
         <Typography variant="h4">優惠券管理</Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleAdd}
-        >
-          新增優惠券
-        </Button>
+        <Box sx={{ display: "flex", gap: 2 }}>
+          <Button
+            variant="outlined"
+            startIcon={<SettingsIcon />}
+            onClick={() => setOpenDrawCostDialog(true)}
+          >
+            設定抽獎點數
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleAdd}
+          >
+            新增優惠券
+          </Button>
+        </Box>
       </Box>
 
       {error && (
@@ -289,46 +409,205 @@ export default function AdminCouponPage() {
       </Dialog>
 
       {/* 編輯/新增對話框 */}
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="md" fullWidth>
         <DialogTitle>{selectedCoupon ? "編輯優惠券" : "新增優惠券"}</DialogTitle>
         <DialogContent>
-          <Box sx={{ pt: 2, display: "flex", flexDirection: "column", gap: 2 }}>
-            <TextField
-              label="名稱"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              fullWidth
-              required
-            />
-            <TextField
-              label="使用期限"
-              type="date"
-              value={formData.period}
-              onChange={(e) => setFormData({ ...formData, period: e.target.value })}
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-              required
-            />
-            <TextField
-              label="連結"
-              value={formData.link}
-              onChange={(e) => setFormData({ ...formData, link: e.target.value })}
-              fullWidth
-            />
-            <TextField
-              label="內容"
-              value={formData.text}
-              onChange={(e) => setFormData({ ...formData, text: e.target.value })}
-              fullWidth
-              multiline
-              rows={3}
-            />
-            <TextField
-              label="圖片URL"
-              value={formData.picture}
-              onChange={(e) => setFormData({ ...formData, picture: e.target.value })}
-              fullWidth
-            />
+          <Box sx={{ pt: 2 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="店家名稱 *"
+                  fullWidth
+                  value={formData.shopName}
+                  onChange={(e) => setFormData({ ...formData, shopName: e.target.value })}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="優惠券名稱 *"
+                  fullWidth
+                  value={formData.couponName}
+                  onChange={(e) => setFormData({ ...formData, couponName: e.target.value })}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  label="描述"
+                  fullWidth
+                  multiline
+                  rows={2}
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth required>
+                  <InputLabel>折扣類型</InputLabel>
+                  <Select
+                    value={formData.discountType}
+                    label="折扣類型"
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        discountType: e.target.value as any,
+                      })
+                    }
+                  >
+                    <MenuItem value="threshold_amount_off">滿額折扣</MenuItem>
+                    <MenuItem value="amount_off">固定金額折扣</MenuItem>
+                    <MenuItem value="percentage">百分比折扣</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              {formData.discountType === "threshold_amount_off" && (
+                <>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      label="最低消費金額"
+                      type="number"
+                      fullWidth
+                      value={formData.minimumOrderAmount || ""}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          minimumOrderAmount: e.target.value ? Number(e.target.value) : null,
+                        })
+                      }
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      label="折扣金額"
+                      type="number"
+                      fullWidth
+                      value={formData.discountAmount || ""}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          discountAmount: e.target.value ? Number(e.target.value) : null,
+                        })
+                      }
+                    />
+                  </Grid>
+                </>
+              )}
+              {formData.discountType === "amount_off" && (
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="折扣金額"
+                    type="number"
+                    fullWidth
+                    value={formData.discountAmount || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        discountAmount: e.target.value ? Number(e.target.value) : null,
+                      })
+                    }
+                  />
+                </Grid>
+              )}
+              {formData.discountType === "percentage" && (
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="折扣百分比 (0-100)"
+                    type="number"
+                    fullWidth
+                    value={formData.discountPercentage || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        discountPercentage: e.target.value ? Number(e.target.value) : null,
+                      })
+                    }
+                    helperText="例如：90 表示 9 折"
+                  />
+                </Grid>
+              )}
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="開始日期 *"
+                  type="date"
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                  value={formData.startDate}
+                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="結束日期 *"
+                  type="date"
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                  value={formData.endDate}
+                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  label="總數量"
+                  type="number"
+                  fullWidth
+                  value={formData.totalQuantity || ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      totalQuantity: e.target.value ? Number(e.target.value) : null,
+                    })
+                  }
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  label="每人限用次數"
+                  type="number"
+                  fullWidth
+                  value={formData.perUserLimit || ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      perUserLimit: e.target.value ? Number(e.target.value) : null,
+                    })
+                  }
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  label="每日限用次數"
+                  type="number"
+                  fullWidth
+                  value={formData.perDayLimit || ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      perDayLimit: e.target.value ? Number(e.target.value) : null,
+                    })
+                  }
+                  helperText="留空表示無限制"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="分店"
+                  fullWidth
+                  value={formData.branch}
+                  onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <ImageUpload
+                  value={formData.picture}
+                  onChange={(url) => setFormData({ ...formData, picture: url })}
+                  label="優惠券圖片"
+                  helperText="可拖放圖片、選擇檔案或貼上圖片（Ctrl+V / Cmd+V）"
+                />
+              </Grid>
+            </Grid>
           </Box>
         </DialogContent>
         <DialogActions>
@@ -341,9 +620,35 @@ export default function AdminCouponPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* 設定抽獎點數對話框 */}
+      <Dialog open={openDrawCostDialog} onClose={() => setOpenDrawCostDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>設定抽獎點數</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              設定學生每次抽獎所需花費的點數
+            </Typography>
+            <TextField
+              label="抽獎一次所需點數"
+              type="number"
+              fullWidth
+              value={drawCostInput}
+              onChange={(e) => setDrawCostInput(e.target.value)}
+              helperText={`目前設定: ${drawCostPoints} 點`}
+              inputProps={{ min: 0 }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDrawCostDialog(false)} disabled={savingDrawCost}>
+            取消
+          </Button>
+          <Button onClick={handleSaveDrawCost} variant="contained" disabled={savingDrawCost}>
+            {savingDrawCost ? <CircularProgress size={20} /> : "儲存"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
-
-
-

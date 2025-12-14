@@ -28,7 +28,7 @@ const drawerWidth = 240;
 
 const menuItems = [
   { text: "設定", icon: <SettingsIcon />, path: "/supplier/setting" },
-  { text: "優惠券管理", icon: <LocalOfferIcon />, path: "/supplier/coupon" },
+  { text: "優惠券管理", icon: <LocalOfferIcon />, path: "/supplier/coupons" },
   { text: "店鋪資訊", icon: <StoreIcon />, path: "/supplier/store" },
 ];
 
