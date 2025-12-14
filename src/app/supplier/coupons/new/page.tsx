@@ -245,6 +245,7 @@ export default function NewCouponPage() {
                 perUserLimit: null,
                 perDayLimit: null,
                 branch: "",
+                picture: "",
                 status: "active", // Default to "active" so coupons appear in student catalog immediately
               });
             }

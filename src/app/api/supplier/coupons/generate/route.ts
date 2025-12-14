@@ -323,7 +323,7 @@ export async function POST(request: NextRequest) {
     // 儲存優惠券到數據庫
     // Extract weight and maxIssuance from couponData if provided
     // Default weight is 1, maxIssuance can be derived from totalQuantity
-    const weight = couponData.weight || 1;
+    const weight = 1; // Default weight is 1 (can be customized by admin later)
     const maxIssuance = couponData.totalQuantity !== null && couponData.totalQuantity !== undefined
       ? couponData.totalQuantity
       : null;

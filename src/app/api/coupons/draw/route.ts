@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
+import { Prisma } from "@prisma/client";
 
 /**
  * Get draw cost in points from database
@@ -52,9 +53,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "未登入" }, { status: 401 });
     }
 
+    // Store userId as a const to ensure type safety
+    const userId: string = session.userId;
+
     // Verify user is a student
     const user = await prisma.user.findUnique({
-      where: { userId: session.userId },
+      where: { userId },
       include: { studentData: true },
     });
 
@@ -66,10 +70,10 @@ export async function POST(request: NextRequest) {
     const DRAW_COST_POINTS = await getDrawCostPoints();
 
     // Use transaction to ensure atomicity
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // 1. Check student has enough points
       const student = await tx.student.findUnique({
-        where: { userId: session.userId },
+        where: { userId },
       });
 
       if (!student) {
@@ -194,7 +198,7 @@ export async function POST(request: NextRequest) {
       let updatedStudent;
       if (DRAW_COST_POINTS > 0) {
         updatedStudent = await tx.student.update({
-          where: { userId: session.userId },
+          where: { userId },
           data: {
             pointsBalance: {
               decrement: DRAW_COST_POINTS,
@@ -220,7 +224,7 @@ export async function POST(request: NextRequest) {
           data: {
             couponId: selectedCoupon.coupon.couponId,
             couponDbId: couponDbId,
-            studentUserId: session.userId,
+            studentUserId: userId,
             redemptionToken,
             status: "UNUSED",
           },

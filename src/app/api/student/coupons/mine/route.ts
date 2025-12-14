@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
       // Update them to REDEEMED status
       if (expiredRedeeming.length > 0) {
         await Promise.all(
-          expiredRedeeming.map((coupon) =>
+          expiredRedeeming.map((coupon: typeof expiredRedeeming[0]) =>
             prisma.purchasedCoupon.update({
               where: { id: coupon.id },
               data: {

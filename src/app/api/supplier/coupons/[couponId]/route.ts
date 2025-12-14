@@ -78,7 +78,7 @@ export async function DELETE(
 
     if (supplier) {
       const updatedCouponIds = (supplier.lsuppcoIDs || []).filter(
-        (id) => id !== couponId
+        (id: string) => id !== couponId
       );
       await prisma.supplier.update({
         where: { userId: session.userId },

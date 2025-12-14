@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
+import { Prisma } from "@prisma/client";
 
 /**
  * Generate a cryptographically strong random token for redemption
@@ -34,9 +35,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "未登入" }, { status: 401 });
     }
 
+    // Store userId as a const to ensure type safety
+    const userId: string = session.userId;
+
     // Verify user is a student
     const user = await prisma.user.findUnique({
-      where: { userId: session.userId },
+      where: { userId },
       include: { studentData: true },
     });
 
@@ -52,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use transaction to ensure atomicity
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // 1. Fetch and validate coupon
       const coupon = await tx.coupon.findUnique({
         where: { couponId },
@@ -102,7 +106,7 @@ export async function POST(request: NextRequest) {
         const userPurchaseCount = await tx.purchasedCoupon.count({
           where: {
             couponId,
-            studentUserId: session.userId,
+            studentUserId: userId,
           },
         });
 
@@ -114,7 +118,7 @@ export async function POST(request: NextRequest) {
       // 6. Check student has enough points
       const requiredPoints = couponData.requiredPoints || 0;
       const student = await tx.student.findUnique({
-        where: { userId: session.userId },
+        where: { userId },
       });
 
       if (!student) {
@@ -162,7 +166,7 @@ export async function POST(request: NextRequest) {
         [updatedStudent, purchasedCoupon] = await Promise.all([
           // Deduct points
           tx.student.update({
-            where: { userId: session.userId },
+            where: { userId },
             data: {
               pointsBalance: {
                 decrement: requiredPoints,
@@ -174,7 +178,7 @@ export async function POST(request: NextRequest) {
             data: {
               couponId,
               couponDbId: couponDbId,
-              studentUserId: session.userId,
+              studentUserId: userId,
               redemptionToken,
               status: "UNUSED",
             },
@@ -185,14 +189,14 @@ export async function POST(request: NextRequest) {
         [updatedStudent, purchasedCoupon] = await Promise.all([
           // Just fetch student (no point deduction needed)
           tx.student.findUnique({
-            where: { userId: session.userId },
+            where: { userId },
           }),
           // Create purchased coupon
           tx.purchasedCoupon.create({
             data: {
               couponId,
               couponDbId: couponDbId,
-              studentUserId: session.userId,
+              studentUserId: userId,
               redemptionToken,
               status: "UNUSED",
             },

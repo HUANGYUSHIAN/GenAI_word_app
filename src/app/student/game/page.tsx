@@ -3432,10 +3432,12 @@ export default function StudentGamePage() {
 
     // 玩家
     if (!state.playerInvincible || Math.floor(Date.now() / 100) % 2 === 0) {
+      const playerX = state.playerX || 0;
+      const playerY = state.playerY || 0;
       ctx.beginPath();
-      ctx.moveTo(state.playerX + PLAYER_WIDTH / 2, state.playerY);
-      ctx.lineTo(state.playerX + PLAYER_WIDTH, state.playerY + PLAYER_HEIGHT);
-      ctx.lineTo(state.playerX, state.playerY + PLAYER_HEIGHT);
+      ctx.moveTo(playerX + PLAYER_WIDTH / 2, playerY);
+      ctx.lineTo(playerX + PLAYER_WIDTH, playerY + PLAYER_HEIGHT);
+      ctx.lineTo(playerX, playerY + PLAYER_HEIGHT);
       ctx.closePath();
       ctx.fillStyle = "#0066ff";
       ctx.fill();
@@ -3447,7 +3449,7 @@ export default function StudentGamePage() {
         ctx.strokeStyle = "#00ffff";
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.arc(state.playerX + PLAYER_WIDTH / 2, state.playerY + PLAYER_HEIGHT / 2, 35, 0, Math.PI * 2);
+        ctx.arc(playerX + PLAYER_WIDTH / 2, playerY + PLAYER_HEIGHT / 2, 35, 0, Math.PI * 2);
         ctx.stroke();
         ctx.lineWidth = 1;
       }
@@ -4032,17 +4034,19 @@ export default function StudentGamePage() {
         const settings = ZOMBIE_SHOOTER_DIFFICULTY[state.difficulty];
         
         // 玩家移動（上下左右移動）
+        if (!state.playerX) state.playerX = 0;
+        if (!state.playerY) state.playerY = 0;
         if (keysRef.current.has("arrowleft") || keysRef.current.has("a")) {
-          state.playerX = Math.max(0, state.playerX - PLAYER_SPEED);
+          state.playerX = Math.max(0, (state.playerX || 0) - PLAYER_SPEED);
         }
         if (keysRef.current.has("arrowright") || keysRef.current.has("d")) {
-          state.playerX = Math.min(CANVAS_WIDTH - PLAYER_WIDTH, state.playerX + PLAYER_SPEED);
+          state.playerX = Math.min(CANVAS_WIDTH - PLAYER_WIDTH, (state.playerX || 0) + PLAYER_SPEED);
         }
         if (keysRef.current.has("arrowup") || keysRef.current.has("w")) {
-          state.playerY = Math.max(80, state.playerY - PLAYER_SPEED); // 80是UI區域高度
+          state.playerY = Math.max(80, (state.playerY || 0) - PLAYER_SPEED); // 80是UI區域高度
         }
         if (keysRef.current.has("arrowdown") || keysRef.current.has("s")) {
-          state.playerY = Math.min(CANVAS_HEIGHT - PLAYER_HEIGHT - 20, state.playerY + PLAYER_SPEED); // 留20像素底部邊距
+          state.playerY = Math.min(CANVAS_HEIGHT - PLAYER_HEIGHT - 20, (state.playerY || 0) + PLAYER_SPEED); // 留20像素底部邊距
         }
 
         // 自動射擊（根據滑鼠方向）
@@ -4052,8 +4056,8 @@ export default function StudentGamePage() {
           state.autoShootCooldown = now;
           if (!state.playerBullets) state.playerBullets = [];
           
-          const playerCenterX = state.playerX + PLAYER_WIDTH / 2;
-          const playerCenterY = state.playerY + PLAYER_HEIGHT / 2;
+          const playerCenterX = (state.playerX || 0) + PLAYER_WIDTH / 2;
+          const playerCenterY = (state.playerY || 0) + PLAYER_HEIGHT / 2;
           const mouseX = state.mouseX || CANVAS_WIDTH / 2;
           const mouseY = state.mouseY || playerCenterY;
           const angle = Math.atan2(mouseY - playerCenterY, mouseX - playerCenterX);
@@ -4107,8 +4111,8 @@ export default function StudentGamePage() {
         const zombieSpawnRate = state.zombieSpawnRate || ZOMBIE_SPAWN_INTERVAL;
         if (now - state.lastZombieSpawn > zombieSpawnRate) {
           if (!state.zombies) state.zombies = [];
-          const playerCenterX = state.playerX + PLAYER_WIDTH / 2;
-          const playerCenterY = state.playerY + PLAYER_HEIGHT / 2;
+          const playerCenterX = (state.playerX || 0) + PLAYER_WIDTH / 2;
+          const playerCenterY = (state.playerY || 0) + PLAYER_HEIGHT / 2;
           
           // 隨機選擇生成邊緣（0=上, 1=右, 2=下, 3=左）
           const side = Math.floor(Math.random() * 4);
@@ -4182,8 +4186,8 @@ export default function StudentGamePage() {
           let letterY = Math.random() * (CANVAS_HEIGHT - 100 - LETTER_SIZE_ZOMBIE) + 80; // 避開UI區域
           
           // 確保不在玩家太近的地方
-          const playerCenterX = state.playerX + PLAYER_WIDTH / 2;
-          const playerCenterY = state.playerY + PLAYER_HEIGHT / 2;
+          const playerCenterX = (state.playerX || 0) + PLAYER_WIDTH / 2;
+          const playerCenterY = (state.playerY || 0) + PLAYER_HEIGHT / 2;
           const minDistance = 100;
           let attempts = 0;
           while (
@@ -4233,8 +4237,8 @@ export default function StudentGamePage() {
 
         // 更新殭屍（朝向玩家移動）
         if (state.zombies) {
-          const playerCenterX = state.playerX + PLAYER_WIDTH / 2;
-          const playerCenterY = state.playerY + PLAYER_HEIGHT / 2;
+          const playerCenterX = (state.playerX || 0) + PLAYER_WIDTH / 2;
+          const playerCenterY = (state.playerY || 0) + PLAYER_HEIGHT / 2;
           
           state.zombies = state.zombies
             .map((zombie) => {
@@ -4309,8 +4313,8 @@ export default function StudentGamePage() {
 
         // 字母不移動，保持固定位置
         // 玩家接觸字母收集
-        const playerCenterX = state.playerX + PLAYER_WIDTH / 2;
-        const playerCenterY = state.playerY + PLAYER_HEIGHT / 2;
+        const playerCenterX = (state.playerX || 0) + PLAYER_WIDTH / 2;
+        const playerCenterY = (state.playerY || 0) + PLAYER_HEIGHT / 2;
         state.fallingLetters = state.fallingLetters.filter((letter) => {
           const letterCenterX = letter.x + LETTER_SIZE_ZOMBIE / 2;
           const letterCenterY = letter.y + LETTER_SIZE_ZOMBIE / 2;
@@ -4332,8 +4336,8 @@ export default function StudentGamePage() {
                 if (!state.explosions) state.explosions = [];
                 
                 // 在玩家前方生成手榴彈
-                const grenadeX = state.playerX + PLAYER_WIDTH + 50;
-                const grenadeY = state.playerY + PLAYER_HEIGHT / 2;
+                const grenadeX = (state.playerX || 0) + PLAYER_WIDTH + 50;
+                const grenadeY = (state.playerY || 0) + PLAYER_HEIGHT / 2;
                 state.grenades.push({
                   id: Date.now() + Math.random(),
                   x: grenadeX,
@@ -4363,8 +4367,8 @@ export default function StudentGamePage() {
 
                   // 完成單字：生成3隻殭屍（從不同方向）
                   if (!state.zombies) state.zombies = [];
-                  const playerCenterX = state.playerX + PLAYER_WIDTH / 2;
-                  const playerCenterY = state.playerY + PLAYER_HEIGHT / 2;
+                  const playerCenterX = (state.playerX || 0) + PLAYER_WIDTH / 2;
+                  const playerCenterY = (state.playerY || 0) + PLAYER_HEIGHT / 2;
                   
                   // 生成3隻殭屍，從不同方向
                   const spawnSides = [0, 1, 2]; // 上、右、下
@@ -4950,17 +4954,19 @@ export default function StudentGamePage() {
       const settings = getDifficultySettings()[state.difficulty];
 
       // 玩家移動
+      if (!state.playerX) state.playerX = 0;
+      if (!state.playerY) state.playerY = 0;
       if (keysRef.current.has("arrowleft") || keysRef.current.has("a")) {
-        state.playerX = Math.max(0, state.playerX - PLAYER_SPEED);
+        state.playerX = Math.max(0, (state.playerX || 0) - PLAYER_SPEED);
       }
       if (keysRef.current.has("arrowright") || keysRef.current.has("d")) {
-        state.playerX = Math.min(CANVAS_WIDTH - PLAYER_WIDTH, state.playerX + PLAYER_SPEED);
+        state.playerX = Math.min(CANVAS_WIDTH - PLAYER_WIDTH, (state.playerX || 0) + PLAYER_SPEED);
       }
       if (keysRef.current.has("arrowup") || keysRef.current.has("w")) {
-        state.playerY = Math.max(100, state.playerY - PLAYER_SPEED);
+        state.playerY = Math.max(100, (state.playerY || 0) - PLAYER_SPEED);
       }
       if (keysRef.current.has("arrowdown") || keysRef.current.has("s")) {
-        state.playerY = Math.min(CANVAS_HEIGHT - PLAYER_HEIGHT, state.playerY + PLAYER_SPEED);
+        state.playerY = Math.min(CANVAS_HEIGHT - PLAYER_HEIGHT, (state.playerY || 0) + PLAYER_SPEED);
       }
 
       // 玩家射擊（使用難度設定的冷卻時間）
@@ -4977,11 +4983,13 @@ export default function StudentGamePage() {
           const damage = hasDamage ? settings.playerDamage * 2 : settings.playerDamage;
 
           if (hasSpread) {
+            const playerX = state.playerX || 0;
+            const playerY = state.playerY || 0;
             state.bullets.push(
               {
                 id: bulletIdRef.current++,
-                x: state.playerX + PLAYER_WIDTH / 2 - 4,
-                y: state.playerY,
+                x: playerX + PLAYER_WIDTH / 2 - 4,
+                y: playerY,
                 damage,
                 isPlayer: true,
                 width: 8,
@@ -4993,8 +5001,8 @@ export default function StudentGamePage() {
               },
               {
                 id: bulletIdRef.current++,
-                x: state.playerX + PLAYER_WIDTH / 2 - 4,
-                y: state.playerY,
+                x: playerX + PLAYER_WIDTH / 2 - 4,
+                y: playerY,
                 damage,
                 isPlayer: true,
                 width: 8,
@@ -5005,8 +5013,8 @@ export default function StudentGamePage() {
               },
               {
                 id: bulletIdRef.current++,
-                x: state.playerX + PLAYER_WIDTH / 2 - 4,
-                y: state.playerY,
+                x: playerX + PLAYER_WIDTH / 2 - 4,
+                y: playerY,
                 damage,
                 isPlayer: true,
                 width: 8,
@@ -5018,10 +5026,12 @@ export default function StudentGamePage() {
               }
             );
           } else {
+            const playerX = state.playerX || 0;
+            const playerY = state.playerY || 0;
             state.bullets.push({
               id: bulletIdRef.current++,
-              x: state.playerX + PLAYER_WIDTH / 2 - 4,
-              y: state.playerY,
+              x: playerX + PLAYER_WIDTH / 2 - 4,
+              y: playerY,
               damage,
               isPlayer: true,
               width: 8,
@@ -5035,7 +5045,7 @@ export default function StudentGamePage() {
       }
 
       // Boss 移動
-      const bossTargetX = state.playerX + PLAYER_WIDTH / 2 - BOSS_WIDTH / 2;
+      const bossTargetX = (state.playerX || 0) + PLAYER_WIDTH / 2 - BOSS_WIDTH / 2;
       const bossMoveSpeed = settings.bossSpeed + state.bossPhase * 0.3;
       if (Math.abs(state.bossX - bossTargetX) > bossMoveSpeed) {
         state.bossX += bossTargetX > state.bossX ? bossMoveSpeed : -bossMoveSpeed;
@@ -5134,8 +5144,8 @@ export default function StudentGamePage() {
             return { ...bullet, y: bullet.y - bullet.speed, x: bullet.x + (bullet.targetX || 0) };
           } else {
             if (bullet.type === "tracking") {
-              const dx = state.playerX + PLAYER_WIDTH / 2 - bullet.x;
-              const dy = state.playerY + PLAYER_HEIGHT / 2 - bullet.y;
+              const dx = (state.playerX || 0) + PLAYER_WIDTH / 2 - bullet.x;
+              const dy = (state.playerY || 0) + PLAYER_HEIGHT / 2 - bullet.y;
               const dist = Math.sqrt(dx * dx + dy * dy);
               if (dist > 0) {
                 return {
@@ -5182,13 +5192,15 @@ export default function StudentGamePage() {
       }
 
       // Boss 子彈擊中玩家
+      const playerX = state.playerX || 0;
+      const playerY = state.playerY || 0;
       state.bullets = state.bullets.filter((bullet) => {
         if (
           !bullet.isPlayer &&
-          bullet.x < state.playerX + PLAYER_WIDTH &&
-          bullet.x + bullet.width > state.playerX &&
-          bullet.y < state.playerY + PLAYER_HEIGHT &&
-          bullet.y + bullet.height > state.playerY
+          bullet.x < playerX + PLAYER_WIDTH &&
+          bullet.x + bullet.width > playerX &&
+          bullet.y < playerY + PLAYER_HEIGHT &&
+          bullet.y + bullet.height > playerY
         ) {
           if (!state.playerInvincible) {
             const hasShield = state.activePowerUps.some((p) => p.type === "shield" && p.endTime > now);
@@ -5208,10 +5220,10 @@ export default function StudentGamePage() {
       // 收集字母
       state.fallingLetters = state.fallingLetters.filter((letter) => {
         if (
-          letter.x < state.playerX + PLAYER_WIDTH &&
-          letter.x + 28 > state.playerX &&
-          letter.y < state.playerY + PLAYER_HEIGHT &&
-          letter.y + 28 > state.playerY
+          letter.x < playerX + PLAYER_WIDTH &&
+          letter.x + 28 > playerX &&
+          letter.y < playerY + PLAYER_HEIGHT &&
+          letter.y + 28 > playerY
         ) {
           const nextIndex = state.collectedLetters.length;
           if (nextIndex < state.correctLetters.length) {

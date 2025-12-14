@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     });
 
     // 解析優惠券的 text 欄位（JSON string）
-    const couponsWithDetails = coupons.map((coupon) => {
+    const couponsWithDetails = coupons.map((coupon: typeof coupons[0]) => {
       let couponDetails: any = {};
       try {
         if (coupon.text) {

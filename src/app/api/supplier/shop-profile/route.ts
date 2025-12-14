@@ -444,7 +444,7 @@ export async function GET(request: NextRequest) {
       phoneNumber: supplierMetadata.phoneNumber || null,
       website: normalizeString(primaryStore.website),
       notes: supplierMetadata.notes || null,
-      branches: stores.map((store) => ({
+      branches: stores.map((store: typeof stores[0]) => ({
         branchName: store.name,
         address: normalizeString(store.location),
       })),
