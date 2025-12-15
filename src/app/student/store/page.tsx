@@ -72,6 +72,10 @@ interface MyCoupon {
   redeemStartedAt: string | null;
   redeemExpiresAt: string | null;
   redeemedAt: string | null;
+  quantity?: number; // 重複張數
+  unusedQuantity?: number; // 未使用的張數
+  redeemingQuantity?: number; // 兌換中的張數
+  couponIds?: string[]; // 所有該優惠券的 ID 列表
 }
 
 interface TabPanelProps {
@@ -252,7 +256,16 @@ export default function StudentStorePage() {
 
   // Start redemption flow - show staff confirmation
   const handleStartRedeem = (coupon: MyCoupon) => {
-    if (coupon.status !== "UNUSED") {
+    // Check if there are any UNUSED coupons available
+    if (coupon.quantity && coupon.unusedQuantity !== undefined && coupon.unusedQuantity <= 0) {
+      setSnackbar({
+        open: true,
+        message: "沒有可兌換的優惠券",
+        severity: "error",
+      });
+      return;
+    }
+    if (coupon.status !== "UNUSED" && (!coupon.quantity || coupon.unusedQuantity === 0)) {
       return;
     }
     setSelectedMyCoupon(coupon);
@@ -265,10 +278,14 @@ export default function StudentStorePage() {
 
     try {
       setStartingRedemption(true);
+      // Use couponId instead of id for grouped coupons
+      const couponId = selectedMyCoupon.couponId;
       const response = await fetch(
-        `/api/student/coupons/mine/${selectedMyCoupon.id}/redeem/start`,
+        `/api/student/coupons/mine/redeem/start`,
         {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ couponId }),
         }
       );
 
@@ -589,9 +606,19 @@ export default function StudentStorePage() {
                   )}
                   <CardContent sx={{ flexGrow: 1 }}>
                     <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                      <Typography variant="h6" component="div">
-                        {coupon.name}
-                      </Typography>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Typography variant="h6" component="div">
+                          {coupon.name}
+                        </Typography>
+                        {coupon.quantity && coupon.quantity > 1 && (
+                          <Chip
+                            label={`x${coupon.quantity}`}
+                            color="primary"
+                            size="small"
+                            variant="outlined"
+                          />
+                        )}
+                      </Box>
                       {getStatusChip(coupon.status)}
                     </Box>
                     <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
@@ -619,7 +646,7 @@ export default function StudentStorePage() {
                     </Typography>
                   </CardContent>
                   <CardActions>
-                    {coupon.status === "UNUSED" ? (
+                    {coupon.unusedQuantity !== undefined && coupon.unusedQuantity > 0 ? (
                       <Button
                         fullWidth
                         variant="contained"
@@ -628,17 +655,13 @@ export default function StudentStorePage() {
                       >
                         兌換
                       </Button>
-                    ) : coupon.status === "REDEEMING" ? (
+                    ) : coupon.redeemingQuantity !== undefined && coupon.redeemingQuantity > 0 ? (
                       <Button fullWidth variant="outlined" disabled startIcon={<AccessTimeIcon />}>
                         兌換中
                       </Button>
-                    ) : coupon.status === "REDEEMED" ? (
-                      <Button fullWidth variant="outlined" disabled>
-                        已兌換
-                      </Button>
                     ) : (
                       <Button fullWidth variant="outlined" disabled>
-                        已過期
+                        {coupon.status === "EXPIRED" ? "已過期" : "已兌換"}
                       </Button>
                     )}
                   </CardActions>

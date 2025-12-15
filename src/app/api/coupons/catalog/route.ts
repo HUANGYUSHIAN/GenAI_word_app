@@ -52,7 +52,14 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
-        const couponData = JSON.parse(coupon.text);
+        // Try to parse JSON, skip if invalid
+        let couponData: any;
+        try {
+          couponData = JSON.parse(coupon.text);
+        } catch (parseError) {
+          console.error(`Error parsing coupon ${coupon.couponId}: Invalid JSON in text field`, parseError);
+          continue; // Skip this coupon if JSON is invalid
+        }
 
         // Include active coupons (draft coupons are not shown to students)
         // Only show coupons with status "active"

@@ -53,12 +53,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "未登入" }, { status: 401 });
     }
 
-    // Store userId as a const to ensure type safety
-    const userId: string = session.userId;
-
     // Verify user is a student
     const user = await prisma.user.findUnique({
-      where: { userId },
+      where: { userId: session.userId },
       include: { studentData: true },
     });
 
@@ -73,7 +70,7 @@ export async function POST(request: NextRequest) {
     const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // 1. Check student has enough points
       const student = await tx.student.findUnique({
-        where: { userId },
+        where: { userId: session.userId },
       });
 
       if (!student) {
@@ -82,7 +79,7 @@ export async function POST(request: NextRequest) {
 
       // Only check points if cost is greater than 0
       if (DRAW_COST_POINTS > 0) {
-        const currentPoints = student.pointsBalance || 0;
+        const currentPoints = (student as any).pointsBalance || 0;
         if (currentPoints < DRAW_COST_POINTS) {
           throw new Error(`點數不足，需要 ${DRAW_COST_POINTS} 點，您目前有 ${currentPoints} 點`);
         }
@@ -104,7 +101,14 @@ export async function POST(request: NextRequest) {
         try {
           if (!coupon.text) continue;
 
-          const couponData = JSON.parse(coupon.text);
+          // Try to parse JSON, skip if invalid
+          let couponData: any;
+          try {
+            couponData = JSON.parse(coupon.text);
+          } catch (parseError) {
+            console.error(`Error parsing coupon ${coupon.couponId}: Invalid JSON in text field`, parseError);
+            continue; // Skip this coupon if JSON is invalid
+          }
 
           // Check status
           if (couponData.status !== "active") continue;
@@ -117,8 +121,8 @@ export async function POST(request: NextRequest) {
           if (endDate && now > endDate) continue; // Expired
 
           // Check stock (remaining issuance count)
-          const maxIssuance = coupon.maxIssuance;
-          const issuedCount = coupon.issuedCount || 0;
+          const maxIssuance = (coupon as any).maxIssuance;
+          const issuedCount = (coupon as any).issuedCount || 0;
           if (maxIssuance !== null && maxIssuance !== undefined) {
             const remainingCount = maxIssuance - issuedCount;
             if (remainingCount <= 0) continue; // Out of stock
@@ -128,7 +132,7 @@ export async function POST(request: NextRequest) {
           eligibleCoupons.push({
             coupon,
             couponData,
-            weight: coupon.weight || 1, // Default weight is 1
+            weight: (coupon as any).weight || 1, // Default weight is 1
           });
         } catch (parseError) {
           console.error(`Error parsing coupon ${coupon.couponId}:`, parseError);
@@ -176,7 +180,7 @@ export async function POST(request: NextRequest) {
       const maxAttempts = 10;
 
       while (tokenExists && attempts < maxAttempts) {
-        const existing = await tx.purchasedCoupon.findUnique({
+        const existing = await (tx as any).purchasedCoupon.findUnique({
           where: { redemptionToken },
         });
         if (!existing) {
@@ -198,12 +202,12 @@ export async function POST(request: NextRequest) {
       let updatedStudent;
       if (DRAW_COST_POINTS > 0) {
         updatedStudent = await tx.student.update({
-          where: { userId },
+          where: { userId: session.userId },
           data: {
             pointsBalance: {
               decrement: DRAW_COST_POINTS,
             },
-          },
+          } as any,
         });
       } else {
         // If cost is 0, just use student data
@@ -218,13 +222,13 @@ export async function POST(request: NextRequest) {
             issuedCount: {
               increment: 1,
             },
-          },
+          } as any,
         }),
-        tx.purchasedCoupon.create({
+        (tx as any).purchasedCoupon.create({
           data: {
             couponId: selectedCoupon.coupon.couponId,
             couponDbId: couponDbId,
-            studentUserId: userId,
+            studentUserId: session.userId,
             redemptionToken,
             status: "UNUSED",
           },
@@ -262,7 +266,7 @@ export async function POST(request: NextRequest) {
           validFrom: selectedCoupon.couponData.startDate || null,
           validTo: selectedCoupon.couponData.endDate || null,
         },
-        remainingPoints: updatedStudent.pointsBalance,
+        remainingPoints: (updatedStudent as any).pointsBalance,
       };
     });
 

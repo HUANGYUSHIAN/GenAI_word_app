@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
     const visibleCoupons = purchasedCoupons.filter((p) => p.status !== "REDEEMED");
 
     // Process and enrich with coupon details
-    const myCoupons = await Promise.all(
+    const processedCoupons = await Promise.all(
       visibleCoupons.map(async (purchased) => {
         try {
           // Parse coupon data from text field
@@ -178,6 +178,80 @@ export async function GET(request: NextRequest) {
         }
       })
     );
+
+    // Group coupons by couponId and calculate quantities
+    const couponGroups = new Map<string, any[]>();
+    for (const coupon of processedCoupons) {
+      const key = coupon.couponId;
+      if (!couponGroups.has(key)) {
+        couponGroups.set(key, []);
+      }
+      couponGroups.get(key)!.push(coupon);
+    }
+
+    // Build grouped coupons with quantity
+    const myCoupons: any[] = [];
+    for (const [couponId, coupons] of couponGroups.entries()) {
+      // Count UNUSED coupons (these are the ones that can be redeemed)
+      const unusedCount = coupons.filter((c) => c.status === "UNUSED").length;
+      const redeemingCount = coupons.filter((c) => c.status === "REDEEMING").length;
+      const expiredCount = coupons.filter((c) => c.status === "EXPIRED").length;
+      
+      // Calculate total quantity (only count UNUSED, REDEEMING, and EXPIRED - exclude REDEEMED)
+      const totalQuantity = unusedCount + redeemingCount + expiredCount;
+      
+      // Skip groups with 0 quantity (all redeemed)
+      if (totalQuantity === 0) {
+        continue;
+      }
+      
+      // Use the first coupon as the representative (they all have the same couponId)
+      const representative = coupons[0];
+      
+      // Find the earliest purchased date
+      const earliestPurchasedAt = coupons.reduce((earliest, c) => {
+        return new Date(c.purchasedAt) < new Date(earliest) ? c.purchasedAt : earliest;
+      }, coupons[0].purchasedAt);
+
+      // Determine the display status for the group
+      // Priority: REDEEMING > UNUSED > EXPIRED
+      let displayStatus = representative.status;
+      let redeemExpiresAt: string | null = null;
+      let redeemStartedAt: string | null = null;
+      
+      if (redeemingCount > 0) {
+        displayStatus = "REDEEMING";
+        // Find the REDEEMING coupon with the latest expiration time
+        const redeemingCoupons = coupons.filter((c) => c.status === "REDEEMING");
+        const latestRedeeming = redeemingCoupons.reduce((latest, c) => {
+          if (!c.redeemExpiresAt) return latest;
+          if (!latest || !latest.redeemExpiresAt) return c;
+          return new Date(c.redeemExpiresAt) > new Date(latest.redeemExpiresAt) ? c : latest;
+        }, redeemingCoupons[0]);
+        if (latestRedeeming) {
+          redeemExpiresAt = latestRedeeming.redeemExpiresAt;
+          redeemStartedAt = latestRedeeming.redeemStartedAt;
+        }
+      } else if (unusedCount > 0) {
+        displayStatus = "UNUSED";
+      } else if (expiredCount > 0) {
+        displayStatus = "EXPIRED";
+      }
+
+      myCoupons.push({
+        ...representative,
+        id: couponId, // Use couponId as the unique identifier for the group
+        status: displayStatus, // Display status for the group
+        quantity: totalQuantity, // Total count of this coupon
+        unusedQuantity: unusedCount, // Count of UNUSED coupons
+        redeemingQuantity: redeemingCount, // Count of REDEEMING coupons
+        purchasedAt: earliestPurchasedAt, // Earliest purchase date
+        redeemExpiresAt: redeemExpiresAt || representative.redeemExpiresAt, // Use REDEEMING coupon's expiration if available
+        redeemStartedAt: redeemStartedAt || representative.redeemStartedAt, // Use REDEEMING coupon's start time if available
+        // Store all coupon IDs for redemption
+        couponIds: coupons.map((c) => c.id),
+      });
+    }
 
     return NextResponse.json({ coupons: myCoupons });
   } catch (error: any) {
