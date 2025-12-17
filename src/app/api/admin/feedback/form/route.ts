@@ -3,8 +3,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 
-// GET - 獲取反饋表單
-export async function GET() {
+// GET - 獲取反饋表單（支援 targetRole 參數）
+export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -22,14 +22,21 @@ export async function GET() {
       return NextResponse.json({ error: "無權限" }, { status: 403 });
     }
 
-    // 獲取最新的表單
-    const form = await prisma.feedbackForm.findFirst({
-      orderBy: { updatedAt: "desc" },
+    const searchParams = request.nextUrl.searchParams;
+    const targetRole = searchParams.get("targetRole") || "Student"; // 默認為 Student
+
+    if (targetRole !== "Student" && targetRole !== "Supplier") {
+      return NextResponse.json({ error: "無效的 targetRole" }, { status: 400 });
+    }
+
+    // 獲取指定角色的表單
+    const form = await prisma.feedbackForm.findUnique({
+      where: { targetRole },
     });
 
     if (form) {
       const questions = JSON.parse(form.questions || "[]");
-      return NextResponse.json({ questions });
+      return NextResponse.json({ questions, targetRole });
     } else {
       // 創建默認表單
       const defaultForm = [
@@ -51,10 +58,24 @@ export async function GET() {
           type: "text",
         },
       ];
-      await prisma.feedbackForm.create({
-        data: { questions: JSON.stringify(defaultForm) },
-      });
-      return NextResponse.json({ questions: defaultForm });
+      try {
+        await prisma.feedbackForm.create({
+          data: { 
+            targetRole,
+            questions: JSON.stringify(defaultForm) 
+          },
+        });
+      } catch (error: any) {
+        // 如果創建失敗（可能是並發問題），嘗試再次獲取
+        const existing = await prisma.feedbackForm.findUnique({
+          where: { targetRole },
+        });
+        if (existing) {
+          const questions = JSON.parse(existing.questions || "[]");
+          return NextResponse.json({ questions, targetRole });
+        }
+      }
+      return NextResponse.json({ questions: defaultForm, targetRole });
     }
   } catch (error: any) {
     console.error("獲取反饋表單失敗:", error);
@@ -85,15 +106,19 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { questions } = body;
+    const { questions, targetRole = "Student" } = body;
 
     if (!Array.isArray(questions)) {
       return NextResponse.json({ error: "無效的問題列表" }, { status: 400 });
     }
 
+    if (targetRole !== "Student" && targetRole !== "Supplier") {
+      return NextResponse.json({ error: "無效的 targetRole" }, { status: 400 });
+    }
+
     // 獲取或創建表單
-    const existing = await prisma.feedbackForm.findFirst({
-      orderBy: { updatedAt: "desc" },
+    const existing = await prisma.feedbackForm.findUnique({
+      where: { targetRole },
     });
 
     if (existing) {
@@ -103,11 +128,14 @@ export async function POST(request: NextRequest) {
       });
     } else {
       await prisma.feedbackForm.create({
-        data: { questions: JSON.stringify(questions) },
+        data: { 
+          targetRole,
+          questions: JSON.stringify(questions) 
+        },
       });
     }
 
-    return NextResponse.json({ success: true, questions });
+    return NextResponse.json({ success: true, questions, targetRole });
   } catch (error: any) {
     console.error("保存反饋表單失敗:", error);
     return NextResponse.json(

@@ -20,16 +20,16 @@ import {
 import HomeIcon from "@mui/icons-material/Home";
 import LocalOfferIcon from "@mui/icons-material/LocalOffer";
 import StoreIcon from "@mui/icons-material/Store";
-import SettingsIcon from "@mui/icons-material/Settings";
+import FeedbackIcon from "@mui/icons-material/Feedback";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { signOut } from "next-auth/react";
 
 const drawerWidth = 240;
 
 const menuItems = [
-  { text: "設定", icon: <SettingsIcon />, path: "/supplier/setting" },
   { text: "優惠券管理", icon: <LocalOfferIcon />, path: "/supplier/coupons" },
   { text: "店鋪資訊", icon: <StoreIcon />, path: "/supplier/store" },
+  { text: "意見回饋", icon: <FeedbackIcon />, path: "/supplier/feedback" },
 ];
 
 function SupplierLayoutContent({ children }: { children: React.ReactNode }) {

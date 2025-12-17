@@ -26,7 +26,7 @@ interface FeedbackQuestion {
   options?: string[]
 }
 
-export default function StudentFeedbackPage() {
+export default function SupplierFeedbackPage() {
   const router = useRouter()
   const { data: session } = useSession()
   const [questions, setQuestions] = useState<FeedbackQuestion[]>([])
@@ -46,7 +46,7 @@ export default function StudentFeedbackPage() {
 
   const loadForm = async () => {
     try {
-      const response = await fetch('/api/feedback/form?targetRole=Student')
+      const response = await fetch('/api/feedback/form?targetRole=Supplier')
       if (response.ok) {
         const data = await response.json()
         setQuestions(data.questions || [])
@@ -62,7 +62,7 @@ export default function StudentFeedbackPage() {
 
   const loadUserFeedback = async () => {
     try {
-      const response = await fetch('/api/student/feedback')
+      const response = await fetch('/api/supplier/feedback')
       if (response.ok) {
         const data = await response.json()
         if (data.feedback && Object.keys(data.feedback).length > 0) {
@@ -94,7 +94,7 @@ export default function StudentFeedbackPage() {
     setSuccess(false)
 
     try {
-      const response = await fetch('/api/student/feedback', {
+      const response = await fetch('/api/supplier/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ feedback: answers }),

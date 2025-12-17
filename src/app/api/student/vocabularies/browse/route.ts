@@ -63,32 +63,36 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    const [vocabularies, total] = await Promise.all([
-      prisma.vocabulary.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: "desc" },
-        include: {
-          _count: {
-            select: { words: true },
-          },
-        },
-      }),
-      prisma.vocabulary.count({ where }),
-    ]);
+    const vocabularies = await prisma.vocabulary.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+    });
 
-    const vocabulariesWithCount = vocabularies.map((v: any) => ({
-      vocabularyId: v.vocabularyId,
-      name: v.name,
-      langUse: v.langUse,
-      langExp: v.langExp,
-      copyrights: v.copyrights,
-      establisher: v.establisher,
-      wordCount: v._count?.words || 0,
-      createdAt: typeof v.createdAt === "string" ? v.createdAt : v.createdAt.toISOString(),
-      isInMyList: lvocabuIDs.includes(v.vocabularyId), // 標記是否已在列表中
-    }));
+    const total = await prisma.vocabulary.count({ where });
+
+    // 直接使用 word.count 獲取每個單字本的單字數（更可靠）
+    const useLocalDb = process.env.DATABASE_local === "true";
+    const vocabulariesWithCount = await Promise.all(
+      vocabularies.map(async (v: any) => {
+        const vocabId = useLocalDb ? v.vocabularyId : v.id;
+        const wordCount = await prisma.word.count({
+          where: { vocabularyId: vocabId },
+        });
+        return {
+          vocabularyId: v.vocabularyId,
+          name: v.name,
+          langUse: v.langUse,
+          langExp: v.langExp,
+          copyrights: v.copyrights,
+          establisher: v.establisher,
+          wordCount: wordCount,
+          createdAt: typeof v.createdAt === "string" ? v.createdAt : v.createdAt.toISOString(),
+          isInMyList: lvocabuIDs.includes(v.vocabularyId), // 標記是否已在列表中
+        };
+      })
+    );
 
     return NextResponse.json({
       vocabularies: vocabulariesWithCount,

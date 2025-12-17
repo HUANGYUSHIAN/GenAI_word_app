@@ -177,10 +177,12 @@ model Word {
 
 model FeedbackForm {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  targetRole String  // "Student" 或 "Supplier"，區分表單類型
   questions String   // 表單問題 (JSON string)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([targetRole])
   @@map("feedback_forms")
 }
 

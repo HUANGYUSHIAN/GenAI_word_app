@@ -1,12 +1,19 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
-// GET - 獲取反饋表單（公開，無需登入）
-export async function GET() {
+// GET - 獲取反饋表單（支援 targetRole 參數）
+export async function GET(request: Request) {
   try {
-    // 獲取最新的表單
-    const form = await prisma.feedbackForm.findFirst({
-      orderBy: { updatedAt: "desc" },
+    const url = new URL(request.url);
+    const targetRole = url.searchParams.get("targetRole") || "Student"; // 默認為 Student
+
+    if (targetRole !== "Student" && targetRole !== "Supplier") {
+      return NextResponse.json({ error: "無效的 targetRole" }, { status: 400 });
+    }
+
+    // 獲取指定角色的表單
+    const form = await prisma.feedbackForm.findUnique({
+      where: { targetRole },
     });
 
     if (form) {

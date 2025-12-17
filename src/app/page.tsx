@@ -181,9 +181,39 @@ function HomeContent() {
       });
 
       if (response.ok) {
-        // 成功選擇身分，強制登出
-        console.log("[Home] Role selected successfully, signing out...");
-        await signOut({ callbackUrl: "/login", redirect: true });
+        const data = await response.json();
+        
+        // 等待資料庫更新完成，輪詢確認 dataType 已更新
+        let retries = 10;
+        let confirmed = false;
+        
+        while (retries > 0 && !confirmed) {
+          try {
+            const checkResponse = await fetch("/api/user");
+            if (checkResponse.ok) {
+              const userData = await checkResponse.json();
+              if (userData.dataType === role) {
+                confirmed = true;
+                break;
+              }
+            }
+          } catch (error) {
+            console.error("Error checking user data:", error);
+          }
+          
+          // 等待 300ms 後再重試
+          await new Promise(resolve => setTimeout(resolve, 300));
+          retries--;
+        }
+        
+        // 無論確認成功與否，都直接重定向（資料庫已更新，只是可能還沒同步）
+        // 使用 window.location.replace 避免在歷史記錄中留下當前頁面
+        const timestamp = Date.now();
+        if (role === "Student") {
+          window.location.replace(`/student?t=${timestamp}&role=Student`);
+        } else {
+          window.location.replace(`/supplier?t=${timestamp}&role=Supplier`);
+        }
       } else {
         const data = await response.json();
         setRoleError(data.error || "選擇身分失敗，請稍後再試");

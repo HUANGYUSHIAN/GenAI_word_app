@@ -29,6 +29,8 @@ interface LanguageSelectProps {
   required?: boolean;
   multiple?: boolean;
   fullWidth?: boolean;
+  allowedLanguages?: string[];
+  disabled?: boolean;
 }
 
 export default function LanguageSelect({
@@ -38,20 +40,27 @@ export default function LanguageSelect({
   required = false,
   multiple = false,
   fullWidth = true,
+  allowedLanguages,
+  disabled = false,
 }: LanguageSelectProps) {
   const handleChange = (event: SelectChangeEvent<string | string[]>) => {
     const newValue = event.target.value;
     onChange(newValue);
   };
 
+  const options = allowedLanguages
+    ? LANGUAGE_OPTIONS.filter((opt) => allowedLanguages.includes(opt.value))
+    : LANGUAGE_OPTIONS;
+
   return (
-    <FormControl fullWidth={fullWidth} required={required}>
+    <FormControl fullWidth={fullWidth} required={required} disabled={disabled}>
       <InputLabel>{label}</InputLabel>
       <Select
         value={value}
         label={label}
         onChange={handleChange}
         multiple={multiple}
+        disabled={disabled}
         renderValue={
           multiple
             ? (selected) => (
@@ -65,7 +74,7 @@ export default function LanguageSelect({
             : undefined
         }
       >
-        {LANGUAGE_OPTIONS.map((option) => (
+        {options.map((option) => (
           <MenuItem key={option.value} value={option.value}>
             {option.label}
           </MenuItem>

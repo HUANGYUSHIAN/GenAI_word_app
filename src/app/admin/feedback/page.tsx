@@ -46,6 +46,7 @@ export default function AdminFeedbackPage() {
   const { data: session } = useSession()
   const [tab, setTab] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [targetRole, setTargetRole] = useState<'Student' | 'Supplier'>('Student')
   const [questions, setQuestions] = useState<FeedbackQuestion[]>([])
   const [userFeedbacks, setUserFeedbacks] = useState<UserFeedback[]>([])
   const [selectedUserId, setSelectedUserId] = useState('')
@@ -66,11 +67,11 @@ export default function AdminFeedbackPage() {
       loadForm()
     }
     setLoading(false)
-  }, [router, tab, session])
+  }, [router, tab, session, targetRole])
 
   const loadForm = async () => {
     try {
-      const response = await fetch('/api/admin/feedback/form')
+      const response = await fetch(`/api/admin/feedback/form?targetRole=${targetRole}`)
       if (response.ok) {
         const data = await response.json()
         setQuestions(data.questions || [])
@@ -83,10 +84,13 @@ export default function AdminFeedbackPage() {
 
   const loadUserFeedbacks = async () => {
     try {
-      const response = await fetch('/api/admin/feedback/users')
+      const response = await fetch(`/api/admin/feedback/users?targetRole=${targetRole}`)
       if (response.ok) {
         const data = await response.json()
         setUserFeedbacks(data.userFeedbacks || [])
+        // 重置選擇
+        setSelectedUserId('')
+        setSelectedFeedback(null)
       }
     } catch (error) {
       console.error('載入用戶反饋失敗:', error)
@@ -97,6 +101,15 @@ export default function AdminFeedbackPage() {
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTab(newValue)
     if (newValue === 0) {
+      loadUserFeedbacks()
+    } else {
+      loadForm()
+    }
+  }
+
+  const handleTargetRoleChange = (newRole: 'Student' | 'Supplier') => {
+    setTargetRole(newRole)
+    if (tab === 0) {
       loadUserFeedbacks()
     } else {
       loadForm()
@@ -158,7 +171,7 @@ export default function AdminFeedbackPage() {
       const response = await fetch('/api/admin/feedback/form', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questions }),
+        body: JSON.stringify({ questions, targetRole }),
       })
 
       if (response.ok) {
@@ -204,10 +217,23 @@ export default function AdminFeedbackPage() {
 
           {tab === 0 && (
             <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                查看使用者回饋
-              </Typography>
-              <FormControl fullWidth sx={{ mb: 3, mt: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Typography variant="h6">
+                  查看使用者回饋
+                </Typography>
+                <FormControl sx={{ minWidth: 200 }}>
+                  <InputLabel>表單類型</InputLabel>
+                  <Select
+                    value={targetRole}
+                    onChange={(e) => handleTargetRoleChange(e.target.value as 'Student' | 'Supplier')}
+                    label="表單類型"
+                  >
+                    <MenuItem value="Student">學生意見回饋</MenuItem>
+                    <MenuItem value="Supplier">廠商意見回饋</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+              <FormControl fullWidth sx={{ mb: 3 }}>
                 <InputLabel>選擇使用者</InputLabel>
                 <Select
                   value={selectedUserId}
@@ -253,9 +279,22 @@ export default function AdminFeedbackPage() {
           {tab === 1 && (
             <Paper sx={{ p: 3 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Typography variant="h6">
-                  表單題目
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Typography variant="h6">
+                    表單題目
+                  </Typography>
+                  <FormControl sx={{ minWidth: 200 }}>
+                    <InputLabel>表單類型</InputLabel>
+                    <Select
+                      value={targetRole}
+                      onChange={(e) => handleTargetRoleChange(e.target.value as 'Student' | 'Supplier')}
+                      label="表單類型"
+                    >
+                      <MenuItem value="Student">學生意見回饋</MenuItem>
+                      <MenuItem value="Supplier">廠商意見回饋</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
                 <Box>
                   <Button
                     variant="outlined"

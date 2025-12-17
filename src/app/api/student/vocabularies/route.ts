@@ -39,41 +39,45 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const [vocabularies, total] = await Promise.all([
-      prisma.vocabulary.findMany({
-        where: {
-          vocabularyId: {
-            in: lvocabuIDs,
-          },
+    const vocabularies = await prisma.vocabulary.findMany({
+      where: {
+        vocabularyId: {
+          in: lvocabuIDs,
         },
-        skip,
-        take: limit,
-        orderBy: { createdAt: "desc" },
-        include: {
-          _count: {
-            select: { words: true },
-          },
-        },
-      }),
-      prisma.vocabulary.count({
-        where: {
-          vocabularyId: {
-            in: lvocabuIDs,
-          },
-        },
-      }),
-    ]);
+      },
+      skip,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+    });
 
-    const vocabulariesWithCount = vocabularies.map((v: any) => ({
-      vocabularyId: v.vocabularyId,
-      name: v.name,
-      langUse: v.langUse,
-      langExp: v.langExp,
-      copyrights: v.copyrights,
-      establisher: v.establisher,
-      wordCount: v._count?.words || 0,
-      createdAt: typeof v.createdAt === "string" ? v.createdAt : v.createdAt.toISOString(),
-    }));
+    const total = await prisma.vocabulary.count({
+      where: {
+        vocabularyId: {
+          in: lvocabuIDs,
+        },
+      },
+    });
+
+    // 直接使用 word.count 獲取每個單字本的單字數（更可靠）
+    const useLocalDb = process.env.DATABASE_local === "true";
+    const vocabulariesWithCount = await Promise.all(
+      vocabularies.map(async (v: any) => {
+        const vocabId = useLocalDb ? v.vocabularyId : v.id;
+        const wordCount = await prisma.word.count({
+          where: { vocabularyId: vocabId },
+        });
+        return {
+          vocabularyId: v.vocabularyId,
+          name: v.name,
+          langUse: v.langUse,
+          langExp: v.langExp,
+          copyrights: v.copyrights,
+          establisher: v.establisher,
+          wordCount: wordCount,
+          createdAt: typeof v.createdAt === "string" ? v.createdAt : v.createdAt.toISOString(),
+        };
+      })
+    );
 
     return NextResponse.json({
       vocabularies: vocabulariesWithCount,

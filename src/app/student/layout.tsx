@@ -20,7 +20,7 @@ import {
 import HomeIcon from "@mui/icons-material/Home";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import StoreIcon from "@mui/icons-material/Store";
-import SettingsIcon from "@mui/icons-material/Settings";
+import FeedbackIcon from "@mui/icons-material/Feedback";
 import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
 import HistoryIcon from "@mui/icons-material/History";
 import LogoutIcon from "@mui/icons-material/Logout";
@@ -31,11 +31,10 @@ const drawerWidth = 240;
 const menuItems = [
   { text: "單字本", icon: <MenuBookIcon />, path: "/student/vocabulary" },
   { text: "點數兌換", icon: <StoreIcon />, path: "/student/store" },
-  { text: "設定", icon: <SettingsIcon />, path: "/student/setting" },
   { text: "單字遊戲", icon: <SportsEsportsIcon />, path: "/student/game" },
   { text: "單字複習", icon: <HistoryIcon />, path: "/student/review" },
   { text: "單字測驗", icon: <SportsEsportsIcon />, path: "/student/test" },
-  { text: "意見回饋", icon: <SettingsIcon />, path: "/student/feedback" },
+  { text: "意見回饋", icon: <FeedbackIcon />, path: "/student/feedback" },
 ];
 
 function StudentLayoutContent({ children }: { children: React.ReactNode }) {
