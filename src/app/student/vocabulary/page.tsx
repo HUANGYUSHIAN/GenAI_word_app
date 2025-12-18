@@ -793,7 +793,7 @@ export default function StudentVocabularyPage() {
               label="背誦語言"
               required
               disabled={generating}
-              allowedLanguages={["Japanese", "Traditional Chinese", "English"]}
+              allowedLanguages={["Japanese", "Korean", "Traditional Chinese", "English"]}
             />
             <LanguageSelect
               value={generateFormData.langExp}
@@ -806,7 +806,7 @@ export default function StudentVocabularyPage() {
               label="解釋語言"
               required
               disabled={generating}
-              allowedLanguages={["Japanese", "Traditional Chinese", "English"]}
+              allowedLanguages={["Japanese", "Korean", "Traditional Chinese", "English"]}
             />
             <TextField
               label="主題"

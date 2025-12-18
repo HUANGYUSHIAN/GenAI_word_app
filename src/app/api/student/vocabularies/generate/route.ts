@@ -8,7 +8,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const ALLOWED_LANGUAGES = ["Japanese", "Traditional Chinese", "English"] as const;
+const ALLOWED_LANGUAGES = ["Japanese", "Korean", "Traditional Chinese", "English"] as const;
 const ALLOWED_LEVELS = ["初級", "中級", "高級"] as const;
 const TARGET_COUNT = 30;
 const MIN_ACCEPTABLE = 25;
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!ALLOWED_LANGUAGES.includes(langUse) || !ALLOWED_LANGUAGES.includes(langExp)) {
-      return NextResponse.json({ error: "僅支援日文、繁體中文、英文" }, { status: 400 });
+      return NextResponse.json({ error: "僅支援日文、韓文、繁體中文、英文" }, { status: 400 });
     }
 
     if (!ALLOWED_LEVELS.includes(level)) {
@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
         count: needed,
         existingWords: collected.map((w) => w.word),
         relaxPos: attempt >= 2,
+        relaxSentence: attempt >= 2,
       });
 
       const completion = await openai.chat.completions.create({
@@ -178,6 +179,7 @@ function buildPrompt({
   count,
   existingWords,
   relaxPos,
+  relaxSentence,
 }: {
   topic: string;
   langUse: AllowedLang;
@@ -186,6 +188,7 @@ function buildPrompt({
   count: number;
   existingWords: string[];
   relaxPos: boolean;
+  relaxSentence: boolean;
 }) {
   const langUseLabel = getLanguageName(langUse);
   const langExpLabel = getLanguageName(langExp);
@@ -210,6 +213,11 @@ function buildPrompt({
         `  - 如果 Word.word 是純平假名（無漢字、無片假名），spelling 必須與 word 相同（例如：おすすめ -> おすすめ，不能是 null）。\n` +
         `  - 如果 Word.word 是純片假名（無漢字、無平假名），spelling 必須與 word 相同（例如：メニュー -> メニュー，不能是 null）。\n` +
         `  - 重要：日文的 spelling 絕對不能是 null，必須根據上述規則填寫。`
+      : langUse === "Korean"
+      ? `Word.spelling 規則（韓文）：必須填寫字母拼寫（한글 자모），不能是 null。\n` +
+        `  - Word.word 是韓文單字（例如：가방, 먹다）。\n` +
+        `  - Word.spelling 必須是該單字的字母拼寫（例如：가방 -> ㄱㅏㅂㅏㅇ，먹다 -> ㅁㅓㄱㄷㅏ）。\n` +
+        `  - 重要：韓文的 spelling 絕對不能是 null，必須根據上述規則填寫。`
       : langUse === "Traditional Chinese"
       ? `Word.spelling 規則（繁體中文）：必須填寫注音，不能是 null。例如：你好 -> ㄋㄧˇ ㄏㄠˇ`
       : `Word.spelling 規則（英文）：請填 null。`;
@@ -222,8 +230,15 @@ function buildPrompt({
 - Word.word 與 Word.sentence 都必須用 ${langUseLabel}，Word.explanation 及 Word.partOfSpeech 用 ${langExpLabel}。
 - ${spellingRule}
 - Word.sentence 必須包含該單字，格式必須是 <單字<（用左尖括號包裹單字，不能出現 '>'，不能缺少標記）。
-  例如：正確格式「<運営<が円滑に行われています。」，錯誤格式「...<運営<...が円滑に行われています。」（不要字面顯示 '...'）。
+  ${langUse === "Korean" 
+    ? `  韓文範例：正確格式「손에는<가방<을들고있었어요.」、「라면을 끓여<먹다<.」`
+    : langUse === "Japanese"
+    ? `  日文範例：正確格式「<運営<が円滑に行われています。」`
+    : `  範例：正確格式「<運営<が円滑に行われています。」`}
+  錯誤格式「...<單字<...」（不要字面顯示 '...'）。
   注意：單字在句子中可以使用時態變化（如動詞變形），但必須保持是同一單字且符合 Explanation 的意思，不能變成其他單字。
+  ${relaxSentence ? "" : "- 重要：<單字< 盡量避免出現在句子一開頭或最尾端，可配合時態等做變化。"}
+  ${relaxSentence ? "- 注意：在嘗試兩次單字未滿的情況下已放寬限制，<單字< 可以出現在頭尾。" : ""}
 - 詞性 (Word.partOfSpeech)：請用 ${langExpLabel} 語言表示詞性；若為日文動詞，標示其動詞類別 (I, II, III)。
 - ${posRequirement}
 - 單字不可重複。${existingList}
@@ -275,6 +290,9 @@ function filterAndNormalize(words: GeneratedWord[], langUse: AllowedLang, langEx
           // 包含漢字：應該有平假名讀音，如果 LLM 沒給，保留 null（但會在驗證時被過濾）
           // 這裡不自動填充，因為我們無法準確轉換漢字到平假名
         }
+      } else if (langUse === "Korean" && (!spelling || spelling === "null")) {
+        // 韓文：如果 spelling 為 null，無法自動生成字母拼寫，保留 null（會在驗證時被過濾）
+        // 字母拼寫需要外部庫或 API，這裡依賴 LLM 正確生成
       } else if (langUse === "Traditional Chinese" && (!spelling || spelling === "null")) {
         // 繁體中文：如果 spelling 為 null，無法自動生成注音，保留 null（會在驗證時被過濾）
         // 注音需要外部庫或 API，這裡依賴 LLM 正確生成
@@ -298,6 +316,10 @@ function filterAndNormalize(words: GeneratedWord[], langUse: AllowedLang, langEx
       // 驗證 spelling 規則
       if (langUse === "Japanese" && !w.spelling) {
         // 日文 spelling 不能為 null
+        return false;
+      }
+      if (langUse === "Korean" && !w.spelling) {
+        // 韓文 spelling 不能為 null
         return false;
       }
       if (langUse === "Traditional Chinese" && !w.spelling) {
@@ -362,6 +384,7 @@ function getLanguageName(code: AllowedLang): string {
     English: "英文",
     "Traditional Chinese": "繁體中文",
     Japanese: "日文",
+    Korean: "韓文",
   };
   return languageMap[code] || code;
 }
